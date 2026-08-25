@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dark Archer Defense — Вид сверху на стену</title>
+    <title>Dark Archer Defense — Доработки</title>
     <style>
         * {
             margin: 0;
@@ -41,7 +41,7 @@
             const W = 480;
             const H = 270;
             const CANOPY_BOTTOM = 26;
-            const WALL_TOP_Y = 58;   // верх стены (передняя кромка площадки)
+            const WALL_TOP_Y = 58;   // передняя кромка площадки
             const WALL_BASE_Y = 84;  // основание стены
             const GROUND_Y = 84;     // начало поляны
 
@@ -67,7 +67,7 @@
             // ---------- Функции запуска/сброса ----------
             function resetGame() {
                 player.x = W / 2;
-                player.y = WALL_TOP_Y;
+                player.y = 48; // теперь игрок стоит за зубчиками
                 player.cooldown = 0;
                 arrows = [];
                 enemies = [];
@@ -138,7 +138,6 @@
                 }
 
                 if (gameState === STATE.PLAYING || gameState === STATE.PAUSED) {
-                    // Кнопка паузы будет вычислена в drawHUD, но для проверки используем приблизительное значение
                     const px = pauseButtonX || 180;
                     const py = 2;
                     const pw = 20;
@@ -214,7 +213,7 @@
             // ---------- Глобальные объекты ----------
             const player = {
                 x: W / 2,
-                y: WALL_TOP_Y,
+                y: 48, // изменено с 58
                 speed: 90,
                 cooldown: 0,
                 maxCooldown: 0.5
@@ -246,7 +245,7 @@
                 alpha: 0
             };
             let gameTime = 0;
-            let pauseButtonX = 180; // глобальная позиция кнопки паузы
+            let pauseButtonX = 180;
 
             // ---------- Спрайты ----------
             const PLAYER_COLORS = { C: '#3b2f42', c: '#2c1f2f', Q: '#5a3a2a' };
@@ -333,12 +332,12 @@
                 bushes = [];
                 rocks = [];
 
-                // Нижняя кромка леса с случайным интервалом
+                // Нижняя кромка с случайным смещением по Y
                 let x = -15;
                 while (x < W + 15) {
                     trees.push({
                         x: x + Math.random() * 10,
-                        y: H - 2,
+                        y: H - 2 + Math.random() * 6 - 3, // смещение вверх/вниз
                         size: 18 + Math.random() * 16,
                         rough: Math.random() * 100,
                         variant: Math.floor(Math.random() * 3)
@@ -350,14 +349,14 @@
                 for (let y = GROUND_Y + 10; y < H; y += 22 + Math.floor(Math.random() * 10)) {
                     trees.push({
                         x: -4 + Math.random() * 4,
-                        y: y + Math.random() * 6,
+                        y: y + Math.random() * 8,
                         size: 12 + Math.random() * 12,
                         rough: Math.random() * 100,
                         variant: Math.floor(Math.random() * 3)
                     });
                     trees.push({
                         x: W + 4 - Math.random() * 4,
-                        y: y + Math.random() * 6,
+                        y: y + Math.random() * 8,
                         size: 12 + Math.random() * 12,
                         rough: Math.random() * 100,
                         variant: Math.floor(Math.random() * 3)
@@ -403,7 +402,7 @@
                 const y = H + 12;
                 enemies.push({
                     x, y,
-                    targetX: 40 + Math.random() * (W - 80),
+                    targetX: W / 2 + Math.random() * 20 - 10, // слаженное движение к центру с небольшим разбросом
                     targetY: WALL_BASE_Y - 2,
                     hp: 2 + Math.floor(wave * 1.2),
                     maxHp: 2 + Math.floor(wave * 1.2),
@@ -459,7 +458,6 @@
             function update(dt, now) {
                 gameTime += dt;
 
-                // Молния
                 if (gameState !== STATE.PAUSED) {
                     if (!lightning.active && now >= lightning.nextTime) {
                         lightning.active = true;
@@ -479,7 +477,6 @@
                     }
                 }
 
-                // Дождь
                 for (const drop of rain) {
                     drop.y += drop.speed * dt;
                     drop.x -= 35 * dt;
@@ -491,16 +488,13 @@
 
                 if (gameState !== STATE.PLAYING) return;
 
-                // Движение игрока
                 if (keys['a'] || keys['arrowleft'] || keys['ф']) player.x -= player.speed * dt;
                 if (keys['d'] || keys['arrowright'] || keys['в']) player.x += player.speed * dt;
                 player.x = Math.max(20, Math.min(W - 20, player.x));
 
-                // Стрельба
                 player.cooldown -= dt;
                 if (mouseDown && player.cooldown <= 0) shoot();
 
-                // Волны
                 if (waveState === 'idle') {
                     waveDelayTimer -= dt;
                     if (waveDelayTimer <= 0) startWave();
@@ -519,7 +513,6 @@
                     }
                 }
 
-                // Враги
                 for (const e of enemies) {
                     if (!e.atWall) {
                         const dx = e.targetX - e.x;
@@ -541,7 +534,6 @@
                     }
                 }
 
-                // Стрелы
                 for (const a of arrows) {
                     a.x += a.vx * dt;
                     a.y += a.vy * dt;
@@ -650,52 +642,46 @@
             }
 
             function drawCastle() {
-                // === Верхняя площадка (вид сверху) ===
-                const platformTopY = 44; // верхний край площадки
-                const platformBottomY = WALL_TOP_Y; // 58, передняя кромка
+                // Деревянная площадка (пол) — увеличена
+                const platformTopY = 32; // верхний край площадки
+                const platformBottomY = WALL_TOP_Y; // 58
 
-                // Каменная площадка
-                ctx.fillStyle = '#555565';
+                // Деревянный настил
+                ctx.fillStyle = '#5a3a2a';
                 ctx.fillRect(0, platformTopY, W, platformBottomY - platformTopY);
 
-                // Текстура плит
-                for (let y = platformTopY; y < platformBottomY; y += 4) {
-                    for (let x = 0; x < W; x += 12) {
-                        const r = (x * 7 + y * 13) % 20;
-                        if (r < 5) {
-                            ctx.fillStyle = '#606070';
-                        } else if (r < 12) {
-                            ctx.fillStyle = '#505060';
-                        } else {
-                            ctx.fillStyle = '#4a4a55';
-                        }
-                        ctx.fillRect(x, y, 12, 4);
-                    }
+                // Горизонтальные доски
+                for (let y = platformTopY; y < platformBottomY; y += 5) {
+                    ctx.fillStyle = '#4a2a1a';
+                    ctx.fillRect(0, y, W, 1);
                 }
+                // Вертикальные стыки досок
+                for (let x = 0; x < W; x += 12) {
+                    ctx.fillStyle = '#3a1a0a';
+                    ctx.fillRect(x, platformTopY, 1, platformBottomY - platformTopY);
+                }
+                // Блики
+                ctx.fillStyle = '#7a4a2a';
+                ctx.fillRect(0, platformTopY, W, 1);
 
-                // === Зубцы на переднем крае площадки ===
-                const battlementHeight = 8; // от platformBottomY - height до platformBottomY
+                // Зубцы на переднем крае площадки
+                const battlementHeight = 8;
                 const battlementY = platformBottomY - battlementHeight; // 50
                 ctx.fillStyle = '#666676';
                 for (let x = 6; x < W; x += 14) {
-                    // Зубец
                     ctx.fillRect(x, battlementY, 8, battlementHeight);
-                    // Светлая грань
                     ctx.fillStyle = '#777787';
                     ctx.fillRect(x + 1, battlementY, 6, battlementHeight);
-                    // Тень снизу
                     ctx.fillStyle = '#555565';
                     ctx.fillRect(x, battlementY + battlementHeight - 2, 8, 2);
-                    // Внутренняя линия
                     ctx.fillStyle = '#666676';
                     ctx.fillRect(x, battlementY + 4, 8, 1);
                 }
 
-                // === Передняя грань стены ===
+                // Передняя грань стены
                 ctx.fillStyle = '#4a4a55';
                 ctx.fillRect(0, WALL_TOP_Y, W, WALL_BASE_Y - WALL_TOP_Y);
 
-                // Каменная кладка
                 const rowH = 7;
                 for (let y = WALL_TOP_Y; y < WALL_BASE_Y; y += rowH) {
                     const offset = (Math.floor((y - WALL_TOP_Y) / rowH) % 2) * 8;
@@ -844,7 +830,6 @@
                 const px = Math.floor(e.x - sprite[0].length / 2);
                 const py = Math.floor(e.y - sprite.length / 2);
 
-                // Контур
                 ctx.fillStyle = '#000000';
                 for (let row = 0; row < sprite.length; row++) {
                     for (let col = 0; col < sprite[row].length; col++) {
@@ -965,7 +950,7 @@
                 drawStars();
                 drawCanopy();
                 drawCastle();
-                for (const tx of [35, 120, 205, 290, 375, 450]) drawTorch(tx, 42, performance.now());
+                for (const tx of [35, 120, 205, 290, 375, 450]) drawTorch(tx, 70, performance.now());
                 drawGround();
                 for (const t of trees) drawTree(t);
                 drawRain();
@@ -1066,7 +1051,7 @@
                 drawStars();
                 drawCanopy();
                 drawCastle();
-                for (const tx of [35, 120, 205, 290, 375, 450]) drawTorch(tx, 42, now);
+                for (const tx of [35, 120, 205, 290, 375, 450]) drawTorch(tx, 70, now);
                 drawGround();
                 for (const t of trees) drawTree(t);
 
