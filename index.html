@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dark Archer Defense — Доработки</title>
+    <title>Dark Archer Defense — Прокачка</title>
     <style>
         * {
             margin: 0;
@@ -41,9 +41,9 @@
             const W = 480;
             const H = 270;
             const CANOPY_BOTTOM = 26;
-            const WALL_TOP_Y = 58;   // передняя кромка площадки
-            const WALL_BASE_Y = 84;  // основание стены
-            const GROUND_Y = 84;     // начало поляны
+            const WALL_TOP_Y = 58;
+            const WALL_BASE_Y = 84;
+            const GROUND_Y = 84;
 
             // ---------- Состояния игры ----------
             const STATE = {
@@ -64,21 +64,44 @@
             const ctx = canvas.getContext('2d');
             ctx.imageSmoothingEnabled = false;
 
+            // ---------- Прокачка ----------
+            const upgrade = {
+                coins: 0,
+                damageLevel: 0,
+                speedLevel: 0,
+                hpLevel: 0,
+                baseDamage: 2,
+                baseCooldown: 0.5,
+                baseMaxHP: 20,
+                damageCost: 10,
+                speedCost: 10,
+                hpCost: 15,
+                damageCostGrowth: 1.5,
+                speedCostGrowth: 1.5,
+                hpCostGrowth: 1.6,
+            };
+
             // ---------- Функции запуска/сброса ----------
             function resetGame() {
                 player.x = W / 2;
-                player.y = 48; // теперь игрок стоит за зубчиками
+                player.y = 48; // игрок стоит за зубчиками
                 player.cooldown = 0;
+                player.maxCooldown = upgrade.baseCooldown + upgrade.speedLevel * 0.03;
                 arrows = [];
                 enemies = [];
                 score = 0;
                 kills = 0;
-                castleHP = 20;
+                castleHP = upgrade.baseMaxHP + upgrade.hpLevel * 5;
                 wave = 0;
                 waveState = 'idle';
                 enemiesToSpawn = 0;
                 spawnTimer = 0;
                 waveDelayTimer = 4;
+                upgrade.coins = 0;
+                upgrade.damageLevel = 0;
+                upgrade.speedLevel = 0;
+                upgrade.hpLevel = 0;
+                updateUpgradeCosts();
 
                 lightning.nextTime = performance.now() + 8000;
                 lightning.active = false;
@@ -97,6 +120,40 @@
                 gameState = STATE.PLAYING;
             }
 
+            function updateUpgradeCosts() {
+                upgrade.damageCost = Math.floor(10 * Math.pow(upgrade.damageCostGrowth, upgrade.damageLevel));
+                upgrade.speedCost = Math.floor(10 * Math.pow(upgrade.speedCostGrowth, upgrade.speedLevel));
+                upgrade.hpCost = Math.floor(15 * Math.pow(upgrade.hpCostGrowth, upgrade.hpLevel));
+            }
+
+            function purchaseUpgrade(type) {
+                if (gameState !== STATE.PLAYING) return;
+
+                if (type === 'damage') {
+                    if (upgrade.coins >= upgrade.damageCost) {
+                        upgrade.coins -= upgrade.damageCost;
+                        upgrade.damageLevel++;
+                        updateUpgradeCosts();
+                    }
+                } else if (type === 'speed') {
+                    if (upgrade.coins >= upgrade.speedCost) {
+                        upgrade.coins -= upgrade.speedCost;
+                        upgrade.speedLevel++;
+                        player.maxCooldown = upgrade.baseCooldown + upgrade.speedLevel * 0.03;
+                        if (player.cooldown > player.maxCooldown) player.cooldown = player.maxCooldown;
+                        updateUpgradeCosts();
+                    }
+                } else if (type === 'hp') {
+                    if (upgrade.coins >= upgrade.hpCost) {
+                        upgrade.coins -= upgrade.hpCost;
+                        upgrade.hpLevel++;
+                        const newMaxHP = upgrade.baseMaxHP + upgrade.hpLevel * 5;
+                        castleHP = newMaxHP; // полное восстановление
+                        updateUpgradeCosts();
+                    }
+                }
+            }
+
             // ---------- Обработчики событий ----------
             document.addEventListener('keydown', (e) => {
                 const key = e.key.toLowerCase();
@@ -111,6 +168,12 @@
                 }
                 if ((gameState === STATE.PLAYING || gameState === STATE.PAUSED) && key === 'p') {
                     gameState = (gameState === STATE.PLAYING) ? STATE.PAUSED : STATE.PLAYING;
+                }
+                // Горячие клавиши для прокачки (1 - урон, 2 - скорость, 3 - хп)
+                if (gameState === STATE.PLAYING) {
+                    if (key === '1') purchaseUpgrade('damage');
+                    if (key === '2') purchaseUpgrade('speed');
+                    if (key === '3') purchaseUpgrade('hp');
                 }
             });
 
@@ -144,6 +207,14 @@
                     const ph = 12;
                     if (mouse.x > px && mouse.x < px + pw && mouse.y > py && mouse.y < py + ph) {
                         isOverUI = true;
+                    }
+
+                    // Кнопки улучшений
+                    const upgradePanel = getUpgradePanelPosition();
+                    for (const btn of upgradePanel.buttons) {
+                        if (mouse.x > btn.x && mouse.x < btn.x + btn.w && mouse.y > btn.y && mouse.y < btn.y + btn.h) {
+                            isOverUI = true;
+                        }
                     }
                 }
 
@@ -195,6 +266,16 @@
                     const ph = 12;
                     if (mx > px && mx < px + pw && my > py && my < py + ph) {
                         gameState = (gameState === STATE.PLAYING) ? STATE.PAUSED : STATE.PLAYING;
+                        return;
+                    }
+
+                    // Улучшения
+                    const upgradePanel = getUpgradePanelPosition();
+                    for (const btn of upgradePanel.buttons) {
+                        if (mx > btn.x && mx < btn.x + btn.w && my > btn.y && my < btn.y + btn.h) {
+                            purchaseUpgrade(btn.type);
+                            return;
+                        }
                     }
                 }
 
@@ -213,7 +294,7 @@
             // ---------- Глобальные объекты ----------
             const player = {
                 x: W / 2,
-                y: 48, // изменено с 58
+                y: 48,
                 speed: 90,
                 cooldown: 0,
                 maxCooldown: 0.5
@@ -332,12 +413,11 @@
                 bushes = [];
                 rocks = [];
 
-                // Нижняя кромка с случайным смещением по Y
                 let x = -15;
                 while (x < W + 15) {
                     trees.push({
                         x: x + Math.random() * 10,
-                        y: H - 2 + Math.random() * 6 - 3, // смещение вверх/вниз
+                        y: H - 2 + Math.random() * 6 - 3,
                         size: 18 + Math.random() * 16,
                         rough: Math.random() * 100,
                         variant: Math.floor(Math.random() * 3)
@@ -345,7 +425,6 @@
                     x += 15 + Math.random() * 25;
                 }
 
-                // Боковые кромки
                 for (let y = GROUND_Y + 10; y < H; y += 22 + Math.floor(Math.random() * 10)) {
                     trees.push({
                         x: -4 + Math.random() * 4,
@@ -363,7 +442,6 @@
                     });
                 }
 
-                // Случайные деревья по поляне
                 for (let i = 0; i < 12; i++) {
                     const x = 20 + Math.random() * (W - 40);
                     const y = GROUND_Y + 30 + Math.random() * (H - GROUND_Y - 50);
@@ -376,14 +454,12 @@
                     });
                 }
 
-                // Кусты
                 for (let i = 0; i < 15; i++) {
                     const x = 10 + Math.random() * (W - 20);
                     const y = GROUND_Y + 15 + Math.random() * (H - GROUND_Y - 30);
                     bushes.push({ x, y, size: 6 + Math.random() * 8 });
                 }
 
-                // Камни
                 for (let i = 0; i < 10; i++) {
                     const x = 15 + Math.random() * (W - 30);
                     const y = GROUND_Y + 15 + Math.random() * (H - GROUND_Y - 25);
@@ -402,7 +478,7 @@
                 const y = H + 12;
                 enemies.push({
                     x, y,
-                    targetX: W / 2 + Math.random() * 20 - 10, // слаженное движение к центру с небольшим разбросом
+                    targetX: W / 2 + Math.random() * 20 - 10,
                     targetY: WALL_BASE_Y - 2,
                     hp: 2 + Math.floor(wave * 1.2),
                     maxHp: 2 + Math.floor(wave * 1.2),
@@ -434,7 +510,7 @@
                     y: chestY,
                     vx: dx / dist * speed,
                     vy: dy / dist * speed,
-                    damage: 2,
+                    damage: upgrade.baseDamage + upgrade.damageLevel,
                     life: 2
                 });
                 player.cooldown = player.maxCooldown;
@@ -546,6 +622,7 @@
                             if (e.hp <= 0) {
                                 score += 20;
                                 kills++;
+                                upgrade.coins += 10; // награда за убийство
                             }
                             break;
                         }
@@ -642,31 +719,25 @@
             }
 
             function drawCastle() {
-                // Деревянная площадка (пол) — увеличена
-                const platformTopY = 32; // верхний край площадки
-                const platformBottomY = WALL_TOP_Y; // 58
+                const platformTopY = 32;
+                const platformBottomY = WALL_TOP_Y;
 
-                // Деревянный настил
                 ctx.fillStyle = '#5a3a2a';
                 ctx.fillRect(0, platformTopY, W, platformBottomY - platformTopY);
 
-                // Горизонтальные доски
                 for (let y = platformTopY; y < platformBottomY; y += 5) {
                     ctx.fillStyle = '#4a2a1a';
                     ctx.fillRect(0, y, W, 1);
                 }
-                // Вертикальные стыки досок
                 for (let x = 0; x < W; x += 12) {
                     ctx.fillStyle = '#3a1a0a';
                     ctx.fillRect(x, platformTopY, 1, platformBottomY - platformTopY);
                 }
-                // Блики
                 ctx.fillStyle = '#7a4a2a';
                 ctx.fillRect(0, platformTopY, W, 1);
 
-                // Зубцы на переднем крае площадки
                 const battlementHeight = 8;
-                const battlementY = platformBottomY - battlementHeight; // 50
+                const battlementY = platformBottomY - battlementHeight;
                 ctx.fillStyle = '#666676';
                 for (let x = 6; x < W; x += 14) {
                     ctx.fillRect(x, battlementY, 8, battlementHeight);
@@ -678,7 +749,6 @@
                     ctx.fillRect(x, battlementY + 4, 8, 1);
                 }
 
-                // Передняя грань стены
                 ctx.fillStyle = '#4a4a55';
                 ctx.fillRect(0, WALL_TOP_Y, W, WALL_BASE_Y - WALL_TOP_Y);
 
@@ -700,21 +770,18 @@
                     }
                 }
 
-                // Бойницы
                 ctx.fillStyle = '#2a2a35';
                 for (let wx = 20; wx < W; wx += 40) {
                     ctx.fillRect(wx, WALL_TOP_Y + 8, 3, 10);
                     ctx.fillRect(wx + 1, WALL_TOP_Y + 6, 1, 2);
                 }
 
-                // Мох и патина
                 ctx.fillStyle = '#2a3a1a';
                 ctx.fillRect(15, WALL_BASE_Y - 6, 22, 5);
                 ctx.fillRect(100, WALL_TOP_Y + 15, 30, 6);
                 ctx.fillRect(280, WALL_BASE_Y - 4, 15, 4);
                 ctx.fillRect(380, WALL_TOP_Y + 5, 18, 10);
 
-                // Трещины
                 ctx.fillStyle = '#1a1a20';
                 ctx.fillRect(45, WALL_TOP_Y + 4, 1, 15);
                 ctx.fillRect(45, WALL_TOP_Y + 12, 7, 1);
@@ -913,6 +980,55 @@
                 ctx.fillRect(x - 1, y - 1, 3, 3);
             }
 
+            function getUpgradePanelPosition() {
+                const panelWidth = 260;
+                const startX = W - panelWidth - 10;
+                const startY = 20;
+                const buttonW = 80;
+                const buttonH = 16;
+                return {
+                    x: startX,
+                    y: startY,
+                    buttons: [
+                        { x: startX, y: startY, w: buttonW, h: buttonH, type: 'damage' },
+                        { x: startX + buttonW + 5, y: startY, w: buttonW, h: buttonH, type: 'speed' },
+                        { x: startX + (buttonW + 5) * 2, y: startY, w: buttonW, h: buttonH, type: 'hp' }
+                    ]
+                };
+            }
+
+            function drawUpgradePanel() {
+                if (gameState !== STATE.PLAYING && gameState !== STATE.PAUSED) return;
+
+                const panel = getUpgradePanelPosition();
+                ctx.fillStyle = 'rgba(20, 10, 15, 0.85)';
+                ctx.fillRect(panel.x - 4, panel.y - 4, 270, 28);
+
+                ctx.fillStyle = '#fff';
+                ctx.font = '6px monospace';
+                ctx.textAlign = 'left';
+                ctx.fillText(`Монеты: ${upgrade.coins}`, panel.x, panel.y + 6);
+
+                ctx.font = '6px monospace';
+                // Кнопка урона
+                drawUpgradeButton(panel.buttons[0], 'Урон', upgrade.damageLevel, upgrade.damageCost);
+                // Кнопка скорости
+                drawUpgradeButton(panel.buttons[1], 'Скор', upgrade.speedLevel, upgrade.speedCost);
+                // Кнопка HP
+                drawUpgradeButton(panel.buttons[2], 'Замок', upgrade.hpLevel, upgrade.hpCost);
+            }
+
+            function drawUpgradeButton(btn, label, level, cost) {
+                const canAfford = upgrade.coins >= cost;
+                ctx.fillStyle = canAfford ? '#2a2a2a' : '#1a1a1a';
+                ctx.fillRect(btn.x, btn.y, btn.w, btn.h);
+                ctx.fillStyle = canAfford ? '#ddd' : '#666';
+                ctx.font = '6px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText(`${label} ${level}`, btn.x + btn.w / 2, btn.y + 6);
+                ctx.fillText(`${cost}м`, btn.x + btn.w / 2, btn.y + 13);
+            }
+
             function drawHUD() {
                 ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
                 ctx.fillRect(0, 0, W, 16);
@@ -944,6 +1060,8 @@
                 ctx.textAlign = 'right';
                 ctx.fillText(`Замок: ${castleHP}`, W - 4, 10);
                 ctx.textAlign = 'left';
+
+                drawUpgradePanel();
             }
 
             function drawMenu() {
