@@ -58,6 +58,7 @@
             const keys = {};
             const mouse = { x: W / 2, y: GROUND_Y + 60 };
             let mouseDown = false;
+            let isOverUI = false; // флаг, что курсор над UI-кнопкой
 
             const canvas = document.getElementById('game');
             const ctx = canvas.getContext('2d');
@@ -87,7 +88,7 @@
 
                 generateRain();
                 generateGrass();
-                generateForest();
+                generateScenery();
                 generateStars();
             }
 
@@ -123,20 +124,61 @@
                 const scaleY = canvas.height / rect.height;
                 mouse.x = (e.clientX - rect.left) * scaleX;
                 mouse.y = (e.clientY - rect.top) * scaleY;
+
+                // Проверяем, над какими кнопками находится курсор
+                isOverUI = false;
+
+                // Кнопка START в меню
+                if (gameState === STATE.MENU) {
+                    const bx = W / 2 - 50;
+                    const by = H / 2 + 10;
+                    const bw = 100;
+                    const bh = 24;
+                    if (mouse.x > bx && mouse.x < bx + bw && mouse.y > by && mouse.y < by + bh) {
+                        isOverUI = true;
+                    }
+                }
+
+                // Кнопка паузы в HUD
+                if (gameState === STATE.PLAYING || gameState === STATE.PAUSED) {
+                    const px = 130;  // рядом со счётом (слева)
+                    const py = 2;
+                    const pw = 20;
+                    const ph = 12;
+                    if (mouse.x > px && mouse.x < px + pw && mouse.y > py && mouse.y < py + ph) {
+                        isOverUI = true;
+                    }
+                }
+
+                // Кнопка RESTART после поражения
+                if (gameState === STATE.GAMEOVER) {
+                    const cx = W / 2 - 40;
+                    const cy = H / 2 + 10;
+                    const cw = 80;
+                    const ch = 20;
+                    if (mouse.x > cx && mouse.x < cx + cw && mouse.y > cy && mouse.y < cy + ch) {
+                        isOverUI = true;
+                    }
+                }
             });
 
             document.addEventListener('mousedown', (e) => {
-                if (e.button === 0) mouseDown = true;
+                if (e.button === 0) {
+                    // Разрешаем стрельбу только если не над UI
+                    if (!isOverUI && gameState === STATE.PLAYING) {
+                        mouseDown = true;
+                    } else {
+                        mouseDown = false;
+                    }
+                }
             });
             document.addEventListener('mouseup', (e) => {
                 if (e.button === 0) {
                     mouseDown = false;
-                    // Обработка клика
                     handleClick();
                 }
             });
 
-            // Функция клика по кнопкам
             function handleClick() {
                 const mx = mouse.x;
                 const my = mouse.y;
@@ -152,9 +194,9 @@
                     }
                 }
 
-                // Кнопка паузы в HUD
+                // Кнопка паузы
                 if (gameState === STATE.PLAYING || gameState === STATE.PAUSED) {
-                    const px = W - 24;   // рядом со счетом
+                    const px = 130;
                     const py = 2;
                     const pw = 20;
                     const ph = 12;
@@ -163,7 +205,7 @@
                     }
                 }
 
-                // Кнопка RESTART после поражения
+                // Кнопка RESTART
                 if (gameState === STATE.GAMEOVER) {
                     const cx = W / 2 - 40;
                     const cy = H / 2 + 10;
@@ -189,7 +231,9 @@
             let enemies = [];
             let rain = [];
             let grassTufts = [];
-            let forest = [];
+            let trees = [];
+            let bushes = [];
+            let rocks = [];
             let stars = [];
             let score = 0;
             let kills = 0;
@@ -290,33 +334,74 @@
                 }
             }
 
-            function generateForest() {
-                forest = [];
-                // Нижняя кромка — больше деревьев, но с интервалом ~22-28 пикселей
-                for (let x = -15; x < W + 15; x += 22 + Math.floor(Math.random() * 6)) {
-                    forest.push({
+            // Генерация деревьев, кустов и камней
+            function generateScenery() {
+                trees = [];
+                bushes = [];
+                rocks = [];
+
+                // Нижняя кромка леса (плотнее)
+                for (let x = -15; x < W + 15; x += 20 + Math.floor(Math.random() * 8)) {
+                    trees.push({
                         x: x + Math.random() * 8,
                         y: H - 2,
-                        size: 20 + Math.random() * 16,
+                        size: 18 + Math.random() * 16,
                         rough: Math.random() * 100,
                         variant: Math.floor(Math.random() * 3)
                     });
                 }
-                // Боковые кромки — больше деревьев
-                for (let y = GROUND_Y + 10; y < H; y += 24 + Math.floor(Math.random() * 10)) {
-                    forest.push({
+
+                // Боковые кромки
+                for (let y = GROUND_Y + 10; y < H; y += 22 + Math.floor(Math.random() * 10)) {
+                    trees.push({
                         x: -4 + Math.random() * 4,
                         y: y + Math.random() * 6,
-                        size: 14 + Math.random() * 12,
+                        size: 12 + Math.random() * 12,
                         rough: Math.random() * 100,
                         variant: Math.floor(Math.random() * 3)
                     });
-                    forest.push({
+                    trees.push({
                         x: W + 4 - Math.random() * 4,
                         y: y + Math.random() * 6,
-                        size: 14 + Math.random() * 12,
+                        size: 12 + Math.random() * 12,
                         rough: Math.random() * 100,
                         variant: Math.floor(Math.random() * 3)
+                    });
+                }
+
+                // Случайные деревья по всей поляне (вразнобой)
+                for (let i = 0; i < 12; i++) {
+                    const x = 20 + Math.random() * (W - 40);
+                    const y = GROUND_Y + 30 + Math.random() * (H - GROUND_Y - 50);
+                    trees.push({
+                        x,
+                        y,
+                        size: 16 + Math.random() * 12,
+                        rough: Math.random() * 100,
+                        variant: Math.floor(Math.random() * 3)
+                    });
+                }
+
+                // Кусты
+                for (let i = 0; i < 15; i++) {
+                    const x = 10 + Math.random() * (W - 20);
+                    const y = GROUND_Y + 15 + Math.random() * (H - GROUND_Y - 30);
+                    bushes.push({
+                        x,
+                        y,
+                        size: 6 + Math.random() * 8
+                    });
+                }
+
+                // Камни
+                for (let i = 0; i < 10; i++) {
+                    const x = 15 + Math.random() * (W - 30);
+                    const y = GROUND_Y + 15 + Math.random() * (H - GROUND_Y - 25);
+                    rocks.push({
+                        x,
+                        y,
+                        size: 4 + Math.random() * 6,
+                        shape: Math.floor(Math.random() * 3)
                     });
                 }
             }
@@ -348,7 +433,7 @@
 
             // ---------- Стрельба ----------
             function shoot() {
-                if (player.cooldown > 0 || gameState !== STATE.PLAYING) return;
+                if (player.cooldown > 0 || gameState !== STATE.PLAYING || isOverUI) return;
                 const chestY = player.y - 12;
                 const dx = mouse.x - player.x;
                 const dy = mouse.y - chestY;
@@ -503,7 +588,6 @@
                 let layerY = t.y - trunkH;
                 let layerW = t.size;
                 const layerH = Math.max(4, Math.floor(t.size / 5));
-                // Разные оттенки для красоты
                 const dark = '#1c3a1c';
                 const light = '#244a24';
                 const mid = '#1f401f';
@@ -513,7 +597,6 @@
                     ctx.fillStyle = i % 2 === 0 ? dark : light;
                     ctx.fillRect(Math.floor(t.x - layerW / 2), Math.floor(layerY), Math.floor(layerW), layerH);
                     const seed = Math.floor(t.rough + i * 10);
-                    // Добавляем неровности и мелкие ветки
                     for (let j = 0; j < layerW; j += 2) {
                         if ((seed * (j + 1)) % 7 < 3) {
                             ctx.fillStyle = mid;
@@ -524,7 +607,6 @@
                             ctx.fillRect(Math.floor(t.x - layerW / 2 + j), Math.floor(layerY), 1, 1);
                         }
                     }
-                    // Ветки по бокам
                     if (i === 1 || i === 3) {
                         ctx.fillStyle = dark;
                         ctx.fillRect(Math.floor(t.x - layerW / 2 - 1), Math.floor(layerY + 1), 2, 1);
@@ -535,6 +617,28 @@
                 }
                 ctx.fillStyle = light;
                 ctx.fillRect(Math.floor(t.x - 1), Math.floor(layerY - 1), 2, 2);
+            }
+
+            function drawBush(b) {
+                ctx.fillStyle = '#1a3a1a';
+                ctx.fillRect(Math.floor(b.x - b.size/2), Math.floor(b.y - 2), Math.floor(b.size), 4);
+                ctx.fillStyle = '#244a24';
+                ctx.fillRect(Math.floor(b.x - b.size/4), Math.floor(b.y - 4), Math.floor(b.size/2), 3);
+                ctx.fillStyle = '#2a502a';
+                ctx.fillRect(Math.floor(b.x - 1), Math.floor(b.y - 5), 2, 2);
+            }
+
+            function drawRock(r) {
+                ctx.fillStyle = '#4a4a55';
+                if (r.shape === 0) {
+                    ctx.fillRect(Math.floor(r.x - r.size/2), Math.floor(r.y - r.size/4), Math.floor(r.size), Math.floor(r.size/2));
+                } else if (r.shape === 1) {
+                    ctx.fillRect(Math.floor(r.x - r.size/3), Math.floor(r.y - r.size/2), Math.floor(r.size*2/3), Math.floor(r.size));
+                } else {
+                    ctx.fillRect(Math.floor(r.x - r.size/2), Math.floor(r.y - r.size/3), Math.floor(r.size), Math.floor(r.size*2/3));
+                }
+                ctx.fillStyle = '#3a3a45';
+                ctx.fillRect(Math.floor(r.x - 1), Math.floor(r.y - 1), 2, 2);
             }
 
             function drawCanopy() {
@@ -555,20 +659,22 @@
             }
 
             function drawCastle() {
-                // Зубцы рисуем сначала (на заднем плане) или после? Сделаем после стены, но более выразительными.
-                ctx.fillStyle = '#4a4a55';
-                ctx.fillRect(0, WALL_TOP_Y - 4, W, 4);
-                ctx.fillStyle = '#4a4a55';
-                ctx.fillRect(0, WALL_TOP_Y, W, WALL_BASE_Y - WALL_TOP_Y);
-
-                // Зубцы (поверх стены)
+                // Зубчики рисуем ПЕРВЫМИ (позади стены)
                 ctx.fillStyle = '#555565';
                 for (let x = 6; x < W; x += 14) {
-                    ctx.fillRect(x, 18, 8, 8);
+                    ctx.fillRect(x, 30, 8, 20);  // увеличенная высота для видимости
                     ctx.fillStyle = '#666676';
-                    ctx.fillRect(x + 1, 18, 6, 8);
+                    ctx.fillRect(x + 1, 30, 6, 20);
                     ctx.fillStyle = '#555565';
                 }
+
+                // Верхняя площадка (пол)
+                ctx.fillStyle = '#4a4a55';
+                ctx.fillRect(0, WALL_TOP_Y - 4, W, 4);
+
+                // Стена (перед зубчиками)
+                ctx.fillStyle = '#4a4a55';
+                ctx.fillRect(0, WALL_TOP_Y, W, WALL_BASE_Y - WALL_TOP_Y);
 
                 // Каменная кладка
                 const rowH = 7;
@@ -622,7 +728,6 @@
                 ctx.fillStyle = '#ffffff';
                 ctx.fillRect(x, y - 8 - h + 3, 1, 2);
 
-                // Свечение, но не влияет на курсор
                 ctx.globalCompositeOperation = 'lighter';
                 const grad = ctx.createRadialGradient(x, y - 12, 2, x, y - 12, 35);
                 grad.addColorStop(0, 'rgba(255, 140, 0, 0.5)');
@@ -639,6 +744,14 @@
                 for (const g of grassTufts) {
                     ctx.fillStyle = g.c;
                     ctx.fillRect(Math.floor(g.x), Math.floor(g.y), 1, 2);
+                }
+                // Кусты
+                for (const b of bushes) {
+                    drawBush(b);
+                }
+                // Камни
+                for (const r of rocks) {
+                    drawRock(r);
                 }
             }
 
@@ -782,25 +895,21 @@
                 ctx.fillText(`Замок: ${castleHP}`, W - 4, 10);
                 ctx.textAlign = 'left';
 
-                // Кнопка паузы рядом со счётом (справа сверху)
-                const px = W - 24;
+                // Кнопка паузы рядом со счётом (слева)
+                const px = 130;
                 const py = 2;
                 const pw = 20;
                 const ph = 12;
-                if (gameState === STATE.PLAYING || gameState === STATE.PAUSED) {
-                    ctx.fillStyle = '#444';
-                    ctx.fillRect(px, py, pw, ph);
-                    ctx.fillStyle = '#ddd';
+                ctx.fillStyle = '#444';
+                ctx.fillRect(px, py, pw, ph);
+                ctx.fillStyle = '#ddd';
+                ctx.fillRect(px + 4, py + 2, 2, 8);
+                ctx.fillRect(px + 10, py + 2, 2, 8);
+                if (gameState === STATE.PAUSED) {
+                    ctx.fillStyle = '#ff0000';
                     ctx.fillRect(px + 4, py + 2, 2, 8);
                     ctx.fillRect(px + 10, py + 2, 2, 8);
-                    if (gameState === STATE.PAUSED) {
-                        ctx.fillStyle = '#ff0000';
-                        ctx.fillRect(px + 4, py + 2, 2, 8);
-                        ctx.fillRect(px + 10, py + 2, 2, 8);
-                    }
                 }
-
-                // Никаких подсказок внизу
             }
 
             function drawMenu() {
@@ -809,7 +918,7 @@
                 drawCastle();
                 for (const tx of [35, 120, 205, 290, 375, 450]) drawTorch(tx, 42, performance.now());
                 drawGround();
-                for (const tree of forest) drawTree(tree);
+                for (const t of trees) drawTree(t);
                 drawRain();
                 drawLightningBolt();
 
@@ -834,7 +943,6 @@
                 const bw = 100;
                 const bh = 24;
 
-                // Подсветка кнопки при наведении
                 if (mouse.x > bx && mouse.x < bx + bw && mouse.y > by && mouse.y < by + bh) {
                     ctx.fillStyle = '#4a2a2a';
                     ctx.fillRect(bx, by, bw, bh);
@@ -902,7 +1010,6 @@
 
                 if (gameState === STATE.MENU) {
                     drawMenu();
-                    // Курсор рисуем в самом конце, чтобы не перекрывался свечением
                     drawCrosshair();
                     return;
                 }
@@ -912,7 +1019,7 @@
                 drawCastle();
                 for (const tx of [35, 120, 205, 290, 375, 450]) drawTorch(tx, 42, now);
                 drawGround();
-                for (const tree of forest) drawTree(tree);
+                for (const t of trees) drawTree(t);
 
                 for (const e of enemies) drawEnemy(e);
                 drawPlayer();
@@ -931,7 +1038,6 @@
                 if (gameState === STATE.PAUSED) drawPauseOverlay();
                 if (gameState === STATE.GAMEOVER) drawGameOver();
 
-                // Курсор рисуем последним, чтобы он был поверх всего
                 drawCrosshair();
             }
 
@@ -951,7 +1057,7 @@
             // ---------- Инициализация ----------
             generateRain();
             generateGrass();
-            generateForest();
+            generateScenery();
             generateStars();
             requestAnimationFrame(frame);
         })();
