@@ -3,14 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dark Archer Defense — Исправленная версия</title>
+    <title>Dark Archer Defense — Исправлено</title>
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
-
         body {
             background: #050308;
             display: flex;
@@ -22,7 +21,6 @@
             user-select: none;
             -webkit-user-select: none;
         }
-
         canvas {
             width: 960px;
             height: 540px;
@@ -37,7 +35,6 @@
 </head>
 <body>
     <canvas id="game" width="480" height="270"></canvas>
-
     <script>
         const canvas = document.getElementById('game');
         const ctx = canvas.getContext('2d');
@@ -58,7 +55,6 @@
             PAUSED: 'paused',
             GAMEOVER: 'gameover'
         };
-
         let gameState = STATE.MENU;
 
         // ---------- Управление ----------
@@ -67,21 +63,28 @@
         const mouse = { x: W / 2, y: GROUND_Y + 60 };
         let mouseDown = false;
 
+        // Функция запуска
+        function startGame() {
+            resetGame();
+            gameState = STATE.PLAYING;
+        }
+
+        // Обработка клавиш
         window.addEventListener('keydown', (e) => {
             const key = e.key.toLowerCase();
             keys[key] = true;
 
-            // Запуск игры: клавиша W, Enter или клик по кнопке
-            if (key === 'w' && gameState === STATE.MENU) {
+            // Запуск
+            if (gameState === STATE.MENU && (key === 'w' || key === 'enter')) {
                 startGame();
             }
-            if (key === 'enter' && gameState === STATE.MENU) {
-                startGame();
-            }
-            if (key === 'r' && gameState === STATE.GAMEOVER) {
+            // Рестарт
+            if (gameState === STATE.GAMEOVER && key === 'r') {
                 resetGame();
+                gameState = STATE.PLAYING;
             }
-            if (key === 'p' && (gameState === STATE.PLAYING || gameState === STATE.PAUSED)) {
+            // Пауза
+            if ((gameState === STATE.PLAYING || gameState === STATE.PAUSED) && key === 'p') {
                 gameState = (gameState === STATE.PLAYING) ? STATE.PAUSED : STATE.PLAYING;
             }
         });
@@ -90,6 +93,7 @@
             keys[e.key.toLowerCase()] = false;
         });
 
+        // Мышь
         canvas.addEventListener('mousemove', (e) => {
             const rect = canvas.getBoundingClientRect();
             const scaleX = canvas.width / rect.width;
@@ -133,8 +137,10 @@
             x: W / 2,
             y: WALL_TOP_Y,
             speed: 90,
-            cooldown: 0
+            cooldown: 0,
+            maxCooldown: 0.5, // добавлено для индикатора
         };
+        player.maxCooldown = 0.5;
 
         let arrows = [];
         let enemies = [];
@@ -163,7 +169,6 @@
             alpha: 0
         };
 
-        let animFrame = 0;
         let gameTime = 0;
 
         // ---------- Спрайты ----------
@@ -171,9 +176,6 @@
             C: '#3b2f42',
             c: '#2c1f2f',
             Q: '#5a3a2a',
-            B: '#8b5a2b',
-            S: '#d2b48c',
-            A: '#e8e0c0',
         };
 
         const PLAYER_BODY = [
@@ -251,7 +253,7 @@
 
         function generateStars() {
             stars = [];
-            for (let i = 0; i < 100; i++) {
+            for (let i = 0; i < 80; i++) {
                 stars.push({
                     x: Math.random() * W,
                     y: Math.random() * (CANOPY_BOTTOM - 8),
@@ -261,25 +263,28 @@
             }
         }
 
+        // Уменьшено количество деревьев — большие интервалы
         function generateForest() {
             forest = [];
-            for (let x = -10; x < W + 10; x += 10) {
+            // Нижняя кромка — шаг 30-40 пикселей
+            for (let x = -15; x < W + 15; x += 32 + Math.floor(Math.random() * 10)) {
                 forest.push({
-                    x: x + Math.random() * 8,
+                    x: x + Math.random() * 12,
                     y: H - 2,
-                    size: 22 + Math.random() * 16,
+                    size: 22 + Math.random() * 14,
                     rough: Math.random() * 100
                 });
             }
-            for (let y = GROUND_Y + 10; y < H; y += 16) {
+            // Боковые кромки — шаг 40-50
+            for (let y = GROUND_Y + 15; y < H; y += 40 + Math.floor(Math.random() * 15)) {
                 forest.push({
-                    x: -4,
+                    x: -4 + Math.random() * 4,
                     y: y + Math.random() * 8,
                     size: 14 + Math.random() * 10,
                     rough: Math.random() * 100
                 });
                 forest.push({
-                    x: W + 4,
+                    x: W + 4 - Math.random() * 4,
                     y: y + Math.random() * 8,
                     size: 14 + Math.random() * 10,
                     rough: Math.random() * 100
@@ -291,7 +296,6 @@
         function spawnEnemy() {
             const x = 20 + Math.random() * (W - 40);
             const y = H + 12;
-
             enemies.push({
                 x,
                 y,
@@ -314,23 +318,16 @@
             waveState = 'spawning';
         }
 
-        function startGame() {
-            resetGame();
-            gameState = STATE.PLAYING;
-        }
-
         function resetGame() {
             player.x = W / 2;
             player.y = WALL_TOP_Y;
             player.cooldown = 0;
-
             arrows = [];
             enemies = [];
             score = 0;
             kills = 0;
             castleHP = 20;
             wave = 0;
-
             waveState = 'idle';
             enemiesToSpawn = 0;
             spawnTimer = 0;
@@ -364,11 +361,11 @@
                 y: chestY,
                 vx: dx / dist * speed,
                 vy: dy / dist * speed,
-                damage: 1,
+                damage: 2,          // увеличенный урон
                 life: 2
             });
 
-            player.cooldown = 0.5;   // новая перезарядка 0.5 сек
+            player.cooldown = player.maxCooldown; // 0.5 сек
         }
 
         // ---------- Молния ----------
@@ -376,7 +373,6 @@
             const points = [];
             let x = 30 + Math.random() * (W - 60);
             let y = 0;
-
             points.push({ x, y });
             while (y < H) {
                 x += (Math.random() - 0.5) * 50;
@@ -392,9 +388,8 @@
         // ---------- Обновление ----------
         function update(dt, now) {
             gameTime += dt;
-            animFrame += dt;
 
-            // Молния (в любом состоянии, кроме паузы)
+            // Молния работает всегда (кроме паузы — не критично)
             if (gameState !== STATE.PAUSED) {
                 if (!lightning.active && now >= lightning.nextTime) {
                     lightning.active = true;
@@ -403,7 +398,6 @@
                     lightning.boltPoints = generateBolt();
                     lightning.nextTime = now + 8000;
                 }
-
                 if (lightning.active) {
                     const elapsed = now - lightning.flashStart;
                     lightning.alpha = Math.exp(-elapsed / 700);
@@ -415,10 +409,17 @@
                 }
             }
 
-            if (gameState !== STATE.PLAYING) {
-                prevKeys = { ...keys };
-                return;
+            // Дождь обновляется всегда
+            for (const drop of rain) {
+                drop.y += drop.speed * dt;
+                drop.x -= 35 * dt;
+                if (drop.y > H || drop.x < -5) {
+                    drop.y = CANOPY_BOTTOM + Math.random() * 8;
+                    drop.x = Math.random() * W;
+                }
             }
+
+            if (gameState !== STATE.PLAYING) return;
 
             // Движение игрока
             if (keys['a'] || keys['arrowleft'] || keys['ф']) player.x -= player.speed * dt;
@@ -475,9 +476,7 @@
                 a.x += a.vx * dt;
                 a.y += a.vy * dt;
                 a.life -= dt;
-
                 if (a.life <= 0 || a.x < -10 || a.x > W + 10 || a.y < 0 || a.y > H + 10) continue;
-
                 for (const e of enemies) {
                     if (Math.hypot(a.x - e.x, a.y - e.y) < e.radius + 2) {
                         e.hp -= a.damage;
@@ -498,18 +497,6 @@
                 castleHP = 0;
                 gameState = STATE.GAMEOVER;
             }
-
-            // Дождь
-            for (const drop of rain) {
-                drop.y += drop.speed * dt;
-                drop.x -= 35 * dt;
-                if (drop.y > H || drop.x < -5) {
-                    drop.y = CANOPY_BOTTOM + Math.random() * 8;
-                    drop.x = Math.random() * W;
-                }
-            }
-
-            prevKeys = { ...keys };
         }
 
         // ---------- Отрисовка ----------
@@ -565,7 +552,6 @@
         function drawCastle() {
             ctx.fillStyle = '#4a4a55';
             ctx.fillRect(0, WALL_TOP_Y - 4, W, 4);
-
             ctx.fillStyle = '#4a4a55';
             ctx.fillRect(0, WALL_TOP_Y, W, WALL_BASE_Y - WALL_TOP_Y);
 
@@ -607,19 +593,16 @@
         }
 
         function drawTorch(x, y, now) {
-            // Крепление на стене
             ctx.fillStyle = '#1a100e';
             ctx.fillRect(x - 2, y, 4, 2);
             ctx.fillStyle = '#3a2214';
             ctx.fillRect(x - 1, y, 2, 1);
 
-            // Рукоять
             ctx.fillStyle = '#3a2214';
             ctx.fillRect(x - 1, y - 8, 2, 8);
             ctx.fillStyle = '#5a3a2a';
             ctx.fillRect(x - 2, y - 8, 4, 2);
 
-            // Пламя
             const flicker = Math.sin(now * 0.03 + x) * 1.2 + Math.random() * 1.0;
             const h = 8 + Math.floor(flicker);
             ctx.fillStyle = '#ff8c00';
@@ -629,7 +612,6 @@
             ctx.fillStyle = '#ffffff';
             ctx.fillRect(x, y - 8 - h + 3, 1, 2);
 
-            // Свечение
             ctx.globalCompositeOperation = 'lighter';
             const grad = ctx.createRadialGradient(x, y - 12, 2, x, y - 12, 35);
             grad.addColorStop(0, 'rgba(255, 140, 0, 0.5)');
@@ -643,7 +625,6 @@
         function drawGround() {
             ctx.fillStyle = '#162116';
             ctx.fillRect(0, GROUND_Y, W, H - GROUND_Y);
-
             for (const g of grassTufts) {
                 ctx.fillStyle = g.c;
                 ctx.fillRect(Math.floor(g.x), Math.floor(g.y), 1, 2);
@@ -669,25 +650,22 @@
             ctx.save();
             ctx.translate(player.x, player.y - 12);
             ctx.rotate(angle);
-            
             ctx.fillStyle = '#5a3a2a';
             ctx.fillRect(4, -6, 2, 14);
             ctx.fillStyle = '#8b5a2b';
             ctx.fillRect(5, -5, 1, 12);
-            
             ctx.fillStyle = '#d2b48c';
             ctx.fillRect(4, -6, 8, 1);
             ctx.fillRect(4, 7, 8, 1);
-            
             ctx.fillStyle = '#e8e0c0';
             ctx.fillRect(2, 0, 8, 1);
             ctx.fillStyle = '#fff';
             ctx.fillRect(2, 0, 2, 1);
             ctx.fillStyle = '#aaa';
             ctx.fillRect(8, 0, 3, 1);
-            
             ctx.restore();
 
+            // Колчан
             ctx.fillStyle = '#4a2a1a';
             ctx.fillRect(px + 14, py + 6, 4, 8);
             ctx.fillStyle = '#3a1a0a';
@@ -696,6 +674,18 @@
             ctx.fillRect(px + 15, py + 4, 1, 4);
             ctx.fillRect(px + 16, py + 3, 1, 5);
             ctx.fillRect(px + 15, py + 5, 1, 3);
+
+            // Индикатор перезарядки (полоска над головой)
+            if (player.cooldown > 0) {
+                const cooldownPercent = 1 - (player.cooldown / player.maxCooldown);
+                const barWidth = 16;
+                const barX = player.x - barWidth/2;
+                const barY = player.y - sprite.length - 4;
+                ctx.fillStyle = '#333';
+                ctx.fillRect(barX, barY, barWidth, 2);
+                ctx.fillStyle = '#ffaa00';
+                ctx.fillRect(barX, barY, Math.floor(barWidth * cooldownPercent), 2);
+            }
         }
 
         function drawEnemy(e) {
@@ -740,12 +730,10 @@
 
         function drawLightningBolt() {
             if (!lightning.boltVisible || lightning.boltPoints.length < 2) return;
-
             ctx.fillStyle = '#ffffff';
             for (const p of lightning.boltPoints) {
                 ctx.fillRect(Math.floor(p.x), Math.floor(p.y), 2, 2);
             }
-
             ctx.globalCompositeOperation = 'lighter';
             ctx.fillStyle = 'rgba(200, 220, 255, 0.4)';
             for (const p of lightning.boltPoints) {
@@ -765,11 +753,9 @@
         function drawCrosshair() {
             const x = Math.floor(mouse.x);
             const y = Math.floor(mouse.y);
-
             ctx.fillStyle = '#ffffff';
             ctx.fillRect(x - 6, y, 13, 1);
             ctx.fillRect(x, y - 6, 1, 13);
-            
             ctx.fillStyle = '#ff0000';
             ctx.fillRect(x - 1, y - 1, 3, 3);
         }
@@ -777,15 +763,12 @@
         function drawHUD() {
             ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
             ctx.fillRect(0, 0, W, 16);
-            
             ctx.fillStyle = '#ffffff';
             ctx.font = '8px monospace';
             ctx.textAlign = 'left';
             ctx.fillText(`Волна: ${wave} | Враги: ${enemies.length} | Счёт: ${score}`, 4, 10);
-            
             ctx.textAlign = 'right';
             ctx.fillText(`Замок: ${castleHP}`, W - 4, 10);
-
             ctx.textAlign = 'center';
             ctx.fillStyle = 'rgba(255,255,255,0.4)';
             ctx.fillText('A/D — движение | ЛКМ — выстрел | P — пауза', W / 2, H - 6);
@@ -814,7 +797,6 @@
             ctx.font = '24px monospace';
             ctx.textAlign = 'center';
             ctx.fillText('DARK ARCHER', W / 2, H / 2 - 40);
-            
             ctx.fillStyle = '#8b0000';
             ctx.font = '12px monospace';
             ctx.fillText('DEFENSE', W / 2, H / 2 - 25);
@@ -824,6 +806,7 @@
             const bw = 100;
             const bh = 24;
 
+            // Подсветка кнопки
             if (mouse.x > bx && mouse.x < bx + bw && mouse.y > by && mouse.y < by + bh) {
                 ctx.fillStyle = '#4a2a2a';
                 ctx.fillRect(bx, by, bw, bh);
@@ -838,41 +821,34 @@
 
             ctx.fillStyle = '#808080';
             ctx.font = '8px monospace';
-            ctx.fillText('W или ENTER или клик для начала', W / 2, H - 20);
-            
+            ctx.fillText('W / ENTER / клик для начала', W / 2, H - 20);
             ctx.textAlign = 'left';
         }
 
         function drawPauseOverlay() {
             ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
             ctx.fillRect(0, 0, W, H);
-
             ctx.fillStyle = '#ffffff';
             ctx.font = '16px monospace';
             ctx.textAlign = 'center';
             ctx.fillText('ПАУЗА', W / 2, H / 2 - 10);
-            
             ctx.fillStyle = '#d2b48c';
             ctx.font = '8px monospace';
             ctx.fillText('P — продолжить', W / 2, H / 2 + 10);
-            
             ctx.textAlign = 'left';
         }
 
         function drawGameOver() {
             ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
             ctx.fillRect(0, 0, W, H);
-
             ctx.fillStyle = '#a00000';
             ctx.font = '20px monospace';
             ctx.textAlign = 'center';
             ctx.fillText('ЗАМОК ПАЛ', W / 2, H / 2 - 15);
-            
             ctx.fillStyle = '#ffffff';
             ctx.font = '8px monospace';
             ctx.fillText(`Волн пройдено: ${wave} | Убито орков: ${kills}`, W / 2, H / 2);
             ctx.fillText('R — рестарт', W / 2, H / 2 + 15);
-            
             ctx.textAlign = 'left';
         }
 
@@ -896,7 +872,7 @@
             for (const e of enemies) drawEnemy(e);
             drawPlayer();
             for (const a of arrows) drawArrow(a);
-            
+
             drawRain();
             drawLightningBolt();
 
@@ -917,14 +893,15 @@
             const dt = Math.min((now - lastTime) / 1000, 0.1);
             lastTime = now;
 
-            if (gameState === STATE.PLAYING) {
-                update(dt, now);
-            } else {
-                update(dt, now); // для эффектов
-                prevKeys = { ...keys };
-            }
+            // Обновление логики
+            update(dt, now);
 
+            // Отрисовка
             draw(now);
+
+            // Обновляем prevKeys для корректной обработки нажатий
+            prevKeys = { ...keys };
+
             requestAnimationFrame(frame);
         }
 
