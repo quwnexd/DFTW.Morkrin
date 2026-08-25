@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dark Archer Defense</title>
+    <title>Dark Archer Defense — Улучшенная версия</title>
     <style>
         * {
             margin: 0;
@@ -12,13 +12,15 @@
         }
 
         body {
-            background: #07060a;
+            background: #050308;
             display: flex;
             justify-content: center;
             align-items: center;
             height: 100vh;
             overflow: hidden;
             cursor: none;
+            user-select: none;
+            -webkit-user-select: none;
         }
 
         canvas {
@@ -26,8 +28,9 @@
             height: 540px;
             image-rendering: pixelated;
             image-rendering: crisp-edges;
-            background: #0b0a10;
-            border: 2px solid #2a2030;
+            background: #000;
+            border: 2px solid #1a101c;
+            cursor: none;
         }
     </style>
 </head>
@@ -39,80 +42,36 @@
         const ctx = canvas.getContext('2d');
         ctx.imageSmoothingEnabled = false;
 
-        // ---------- Основные размеры ----------
+        // ---------- Основные параметры ----------
         const W = 480;
         const H = 270;
-        const CANOPY_BOTTOM = 22;   // нижний край навеса
-        const WALL_TOP_Y = 44;      // уровень ног лучника (верх стены)
-        const WALL_BASE_Y = 64;     // основание стены
-        const GROUND_Y = 64;        // начало поляны
+        const CANOPY_BOTTOM = 26;   // Нижний край навеса
+        const WALL_TOP_Y = 58;      // Уровень ног лучника
+        const WALL_BASE_Y = 84;     // Основание стены
+        const GROUND_Y = 84;        // Начало поляны
 
-        // ---------- Спрайт орка ----------
-        const ORC_COLORS = {
-            G: '#2e4a1e',
-            g: '#3a5c2a',
-            d: '#1f3314',
-            R: '#b33',
-            r: '#6a1f1f',
-            t: '#4a3620',
-            w: '#8b8b8b'
+        // ---------- Состояния игры ----------
+        const STATE = {
+            MENU: 'menu',
+            PLAYING: 'playing',
+            PAUSED: 'paused',
+            GAMEOVER: 'gameover'
         };
 
-        const ORC_SPRITE = [
-            '....GGGGGG....',
-            '...GGGGGGGG...',
-            '...GGGGGGGG...',
-            '...GGGGGGGG...',
-            '...RGGGGGGR...',
-            '...RGGGGGGR...',
-            '...GGGGGGGG...',
-            '...GGGttGGG...',
-            '....GGttGG....',
-            '....GGGGGG....',
-            '...GGGGGGGG...',
-            '...GGGGGGGG...',
-            '...dGGGGGGd...',
-            '...dddddddd...'
-        ];
-
-        // ---------- Спрайт лучника ----------
-        const PLAYER_COLORS = {
-            H: '#e8e8e8',
-            C: '#3b2f42',
-            c: '#2c1f2f',
-            S: '#d2b48c',
-            Q: '#5a3a2a'
-        };
-
-        const PLAYER_SPRITE = [
-            '......HHHH......',
-            '.....HHHHHH.....',
-            '.....CCCCCC.....',
-            '....CCCCCCCC....',
-            '....CCCCCCCC....',
-            '....CSSCCCC.....',
-            '...CCCCCCCCQ....',
-            '...CCCCCCCCQ....',
-            '....CCCCCC......',
-            '....CCCCCC......',
-            '....CCCCCC......',
-            '.....CCCC.......',
-            '.....CCCC.......',
-            '......cc........'
-        ];
+        let gameState = STATE.MENU;
 
         // ---------- Управление ----------
         const keys = {};
-        const mouse = {
-            x: W / 2,
-            y: GROUND_Y + 60
-        };
+        let prevKeys = {};
+        const mouse = { x: W / 2, y: GROUND_Y + 60 };
         let mouseDown = false;
+        let clickProcessed = false;
 
         window.addEventListener('keydown', (e) => {
             const key = e.key.toLowerCase();
             keys[key] = true;
-            if (key === 'r' && gameOver) resetGame();
+            if (key === 'r' && gameState === STATE.GAMEOVER) resetGame();
+            if (key === 'enter' && gameState === STATE.MENU) startGame();
         });
 
         window.addEventListener('keyup', (e) => {
@@ -128,7 +87,10 @@
         });
 
         canvas.addEventListener('mousedown', (e) => {
-            if (e.button === 0) mouseDown = true;
+            if (e.button === 0) {
+                mouseDown = true;
+                clickProcessed = false;
+            }
         });
 
         canvas.addEventListener('mouseup', (e) => {
@@ -137,11 +99,11 @@
 
         canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 
-        // ---------- Состояние игры ----------
+        // ---------- Глобальные объекты ----------
         const player = {
             x: W / 2,
             y: WALL_TOP_Y,
-            speed: 85,
+            speed: 90,
             cooldown: 0
         };
 
@@ -150,6 +112,7 @@
         let rain = [];
         let grassTufts = [];
         let forest = [];
+        let stars = [];
 
         let score = 0;
         let kills = 0;
@@ -162,11 +125,8 @@
         let spawnInterval = 1.5;
         let waveDelayTimer = 3;
 
-        let gameOver = false;
-
-        // Молния
         let lightning = {
-            nextTime: performance.now() + 10000,
+            nextTime: performance.now() + 8000,
             flashStart: 0,
             active: false,
             boltVisible: false,
@@ -174,80 +134,152 @@
             alpha: 0
         };
 
+        let animFrame = 0;
+        let gameTime = 0;
+
+        // ---------- Спрайты (Пиксель-арт) ----------
+
+        // Лучник (20x22) — Улучшенный
+        const PLAYER_COLORS = {
+            H: '#e8e8e8', // волосы
+            C: '#3b2f42', // плащ
+            c: '#2c1f2f', // тень плаща
+            S: '#d2b48c', // кожа
+            Q: '#5a3a2a', // колчан
+            B: '#8b5a2b', // лук
+            A: '#e8e0c0', // стрела
+            R: '#a33'     // акцент
+        };
+
+        const PLAYER_BODY = [
+            '......HHHHHHH......',
+            '.....HHHHHHHHH.....',
+            '.....HHHHHHHHH.....',
+            '....CCCCCCCCCCC....',
+            '...CCCCCCCCCCCCC...',
+            '...CCCSSSSSSCCCQ...',
+            '...CCCSSSSSSCCCQ...',
+            '...CCCSSSSSSCCCQ...',
+            '...CCCCCCCCCCCCC...',
+            '...CCcCCCCCCcCCC...',
+            '...CCCCCCCCCCCCC...',
+            '....CCCCCCCCCCC....',
+            '....CCCCCCCCCCC....',
+            '.....CCCCCCCCC.....',
+            '.....CCCCCCCCC.....',
+            '......CCCCCCC......',
+            '......CCCCCCC......',
+            '.......CCCCC.......'
+        ];
+
+        // Орк (16x18) — Улучшенный
+        const ORC_COLORS = {
+            G: '#2e4a1e', // темная кожа
+            g: '#3a5c2a', // светлая кожа
+            d: '#1f3314', // тень
+            R: '#ff3333', // глаза
+            r: '#8b1a1a', // глубина глаз
+            t: '#4a3620', // одежда
+            w: '#9e9e9e', // металл/оружие
+            b: '#5a4a3a'  // кость
+        };
+
+        const ORC_SPRITE = [
+            '....GGGGGGGG....',
+            '...GGGGGGGGGG...',
+            '..GGGGGGGGGGGG..',
+            '..GGGGGGGGGGGG..',
+            '..GGRRGGGGRRGG..',
+            '..GGRRGGGGRRGG..',
+            '..GGGGGGGGGGGG..',
+            '..GGttttttttGG..',
+            '...GttttttttG...',
+            '...GGttGGttGG...',
+            '..GGGGGGGGGGGG..',
+            '..GGGGGGGGGGGG..',
+            '..GddddddddddG..',
+            '..GGGGGGGGGGGG..',
+            '...GGG....GGG...',
+            '..b.GGG..GGG.b..'
+        ];
+
         // ---------- Генерация декораций ----------
         function generateRain() {
-            rain = Array.from({ length: 90 }, () => ({
+            rain = Array.from({ length: 120 }, () => ({
                 x: Math.random() * W,
                 y: CANOPY_BOTTOM + Math.random() * (H - CANOPY_BOTTOM),
-                speed: 250 + Math.random() * 150,
-                len: 3 + Math.floor(Math.random() * 5)
+                speed: 300 + Math.random() * 200,
+                len: 4 + Math.floor(Math.random() * 6)
             }));
         }
 
         function generateGrass() {
             grassTufts = [];
-            const colors = ['#1f3a1f', '#2a4a2a', '#1a2e1a', '#264126'];
-            for (let i = 0; i < 320; i++) {
+            const colors = ['#1f3a1f', '#2a4a2a', '#1a2e1a', '#264126', '#0f1f0f'];
+            for (let i = 0; i < 450; i++) {
                 grassTufts.push({
                     x: Math.random() * W,
-                    y: GROUND_Y + Math.random() * (H - GROUND_Y - 10),
+                    y: GROUND_Y + Math.random() * (H - GROUND_Y - 5),
                     c: colors[Math.floor(Math.random() * colors.length)]
+                });
+            }
+        }
+
+        function generateStars() {
+            stars = [];
+            for (let i = 0; i < 100; i++) {
+                stars.push({
+                    x: Math.random() * W,
+                    y: Math.random() * (CANOPY_BOTTOM - 8),
+                    b: Math.random() * 0.8 + 0.2,
+                    twinkle: Math.random() * 0.1
                 });
             }
         }
 
         function generateForest() {
             forest = [];
-
-            // Нижняя кромка леса
-            for (let x = -6; x < W + 6; x += 12) {
+            // Нижняя кромка (спавн)
+            for (let x = -10; x < W + 10; x += 10) {
                 forest.push({
-                    x: x + Math.random() * 6,
-                    y: H - 4,
-                    size: 18 + Math.random() * 12
+                    x: x + Math.random() * 8,
+                    y: H - 2,
+                    size: 22 + Math.random() * 16,
+                    rough: Math.random() * 100
                 });
             }
-
-            // Левый и правый лес
-            for (let y = GROUND_Y + 30; y < H; y += 20) {
+            // Боковые кромки
+            for (let y = GROUND_Y + 10; y < H; y += 16) {
                 forest.push({
                     x: -4,
-                    y: y + Math.random() * 6,
-                    size: 12 + Math.random() * 8
+                    y: y + Math.random() * 8,
+                    size: 14 + Math.random() * 10,
+                    rough: Math.random() * 100
                 });
                 forest.push({
                     x: W + 4,
-                    y: y + Math.random() * 6,
-                    size: 12 + Math.random() * 8
+                    y: y + Math.random() * 8,
+                    size: 14 + Math.random() * 10,
+                    rough: Math.random() * 100
                 });
             }
         }
 
         // ---------- Враги и волны ----------
         function spawnEnemy() {
-            const side = Math.floor(Math.random() * 3); // 0 — низ, 1 — лево, 2 — право
-            let x, y;
-
-            if (side === 0) {
-                x = 20 + Math.random() * (W - 40);
-                y = H + 10;
-            } else if (side === 1) {
-                x = -12;
-                y = GROUND_Y + 20 + Math.random() * (H - GROUND_Y - 30);
-            } else {
-                x = W + 12;
-                y = GROUND_Y + 20 + Math.random() * (H - GROUND_Y - 30);
-            }
+            // Спавн ТОЛЬКО снизу
+            const x = 20 + Math.random() * (W - 40);
+            const y = H + 12;
 
             enemies.push({
                 x,
                 y,
                 targetX: 40 + Math.random() * (W - 80),
-                targetY: WALL_BASE_Y - 3,
-                hp: 2 + Math.floor(wave / 3),
-                maxHp: 2 + Math.floor(wave / 3),
-                speed: 13 + Math.random() * 5 + wave * 0.5,
-                radius: 6,
+                targetY: WALL_BASE_Y - 2,
+                hp: 3 + Math.floor(wave * 1.5),
+                maxHp: 3 + Math.floor(wave * 1.5),
+                speed: 14 + Math.random() * 6 + wave * 0.8,
+                radius: 7,
                 atWall: false,
                 attackTimer: 0
             });
@@ -255,10 +287,15 @@
 
         function startWave() {
             wave++;
-            enemiesToSpawn = 4 + wave * 2;
-            spawnInterval = Math.max(0.5, 1.6 - wave * 0.1);
+            enemiesToSpawn = 5 + wave * 3;
+            spawnInterval = Math.max(0.4, 1.8 - wave * 0.15);
             spawnTimer = 0;
             waveState = 'spawning';
+        }
+
+        function startGame() {
+            resetGame();
+            gameState = STATE.PLAYING;
         }
 
         function resetGame() {
@@ -276,10 +313,10 @@
             waveState = 'idle';
             enemiesToSpawn = 0;
             spawnTimer = 0;
-            waveDelayTimer = 3;
-            gameOver = false;
+            waveDelayTimer = 4;
+            gameState = STATE.PLAYING;
 
-            lightning.nextTime = performance.now() + 10000;
+            lightning.nextTime = performance.now() + 8000;
             lightning.active = false;
             lightning.boltVisible = false;
             lightning.alpha = 0;
@@ -288,17 +325,18 @@
             generateRain();
             generateGrass();
             generateForest();
+            generateStars();
         }
 
         // ---------- Стрельба ----------
         function shoot() {
-            if (player.cooldown > 0 || gameOver) return;
+            if (player.cooldown > 0 || gameState !== STATE.PLAYING) return;
 
-            const chestY = player.y - 10;
+            const chestY = player.y - 12;
             const dx = mouse.x - player.x;
             const dy = mouse.y - chestY;
             const dist = Math.hypot(dx, dy) || 1;
-            const speed = 380;
+            const speed = 420;
 
             arrows.push({
                 x: player.x,
@@ -309,65 +347,69 @@
                 life: 2
             });
 
-            player.cooldown = 0.25;
+            player.cooldown = 0.22;
         }
 
         // ---------- Молния ----------
         function generateBolt() {
             const points = [];
-            let x = 20 + Math.random() * (W - 40);
+            let x = 30 + Math.random() * (W - 60);
             let y = 0;
 
             points.push({ x, y });
-
             while (y < H) {
-                x += (Math.random() - 0.5) * 45;
-                y += 12 + Math.random() * 25;
+                x += (Math.random() - 0.5) * 50;
+                y += 10 + Math.random() * 22;
                 points.push({
                     x: Math.max(2, Math.min(W - 2, x)),
                     y: Math.min(H, y)
                 });
             }
-
             return points;
         }
 
         // ---------- Обновление ----------
         function update(dt, now) {
-            if (gameOver) return;
+            gameTime += dt;
+            animFrame += dt;
 
-            // Молния
-            if (!lightning.active && now >= lightning.nextTime) {
-                lightning.active = true;
-                lightning.flashStart = now;
-                lightning.boltVisible = true;
-                lightning.boltPoints = generateBolt();
-                lightning.nextTime = now + 10000;
-            }
+            // Молния (в любом состоянии, кроме паузы)
+            if (gameState !== STATE.PAUSED) {
+                if (!lightning.active && now >= lightning.nextTime) {
+                    lightning.active = true;
+                    lightning.flashStart = now;
+                    lightning.boltVisible = true;
+                    lightning.boltPoints = generateBolt();
+                    lightning.nextTime = now + 8000;
+                }
 
-            if (lightning.active) {
-                const elapsed = now - lightning.flashStart;
-                lightning.alpha = Math.exp(-elapsed / 900);
-
-                if (elapsed > 150) lightning.boltVisible = false;
-                if (lightning.alpha < 0.02) {
-                    lightning.alpha = 0;
-                    lightning.active = false;
+                if (lightning.active) {
+                    const elapsed = now - lightning.flashStart;
+                    lightning.alpha = Math.exp(-elapsed / 700);
+                    if (elapsed > 120) lightning.boltVisible = false;
+                    if (lightning.alpha < 0.02) {
+                        lightning.alpha = 0;
+                        lightning.active = false;
+                    }
                 }
             }
 
+            if (gameState !== STATE.PLAYING) return;
+
             // Движение игрока
-            if (keys['a'] || keys['arrowleft'] || keys['ф']) {
-                player.x -= player.speed * dt;
+            if (keys['a'] || keys['arrowleft'] || keys['ф']) player.x -= player.speed * dt;
+            if (keys['d'] || keys['arrowright'] || keys['в']) player.x += player.speed * dt;
+            player.x = Math.max(20, Math.min(W - 20, player.x));
+
+            // Пауза по клавише P
+            if (keys['p'] && !prevKeys['p']) {
+                gameState = STATE.PAUSED;
+                return;
             }
-            if (keys['d'] || keys['arrowright'] || keys['в']) {
-                player.x += player.speed * dt;
-            }
-            player.x = Math.max(16, Math.min(W - 16, player.x));
 
             // Стрельба
             player.cooldown -= dt;
-            if (mouseDown) shoot();
+            if (mouseDown && player.cooldown <= 0) shoot();
 
             // Волны
             if (waveState === 'idle') {
@@ -380,13 +422,11 @@
                     enemiesToSpawn--;
                     spawnTimer = spawnInterval;
                 }
-                if (enemiesToSpawn <= 0) {
-                    waveState = 'active';
-                }
+                if (enemiesToSpawn <= 0) waveState = 'active';
             } else if (waveState === 'active') {
                 if (enemies.length === 0) {
                     waveState = 'idle';
-                    waveDelayTimer = 4;
+                    waveDelayTimer = 5;
                 }
             }
 
@@ -396,7 +436,6 @@
                     const dx = e.targetX - e.x;
                     const dy = e.targetY - e.y;
                     const dist = Math.hypot(dx, dy);
-
                     if (dist > 2) {
                         e.x += dx / dist * e.speed * dt;
                         e.y += dy / dist * e.speed * dt;
@@ -408,7 +447,7 @@
                     e.attackTimer -= dt;
                     if (e.attackTimer <= 0) {
                         castleHP -= 5;
-                        e.attackTimer = 1.5;
+                        e.attackTimer = 1.4;
                     }
                 }
             }
@@ -419,16 +458,14 @@
                 a.y += a.vy * dt;
                 a.life -= dt;
 
-                if (a.life <= 0 || a.x < -10 || a.x > W + 10 || a.y < 0 || a.y > H + 10) {
-                    continue;
-                }
+                if (a.life <= 0 || a.x < -10 || a.x > W + 10 || a.y < 0 || a.y > H + 10) continue;
 
                 for (const e of enemies) {
                     if (Math.hypot(a.x - e.x, a.y - e.y) < e.radius + 2) {
                         e.hp -= a.damage;
                         a.life = 0;
                         if (e.hp <= 0) {
-                            score += 15;
+                            score += 20;
                             kills++;
                         }
                         break;
@@ -441,125 +478,160 @@
 
             if (castleHP <= 0) {
                 castleHP = 0;
-                gameOver = true;
+                gameState = STATE.GAMEOVER;
             }
 
             // Дождь
             for (const drop of rain) {
                 drop.y += drop.speed * dt;
-                drop.x -= 28 * dt;
-
+                drop.x -= 35 * dt;
                 if (drop.y > H || drop.x < -5) {
                     drop.y = CANOPY_BOTTOM + Math.random() * 8;
                     drop.x = Math.random() * W;
                 }
             }
+
+            prevKeys = { ...keys };
         }
 
         // ---------- Отрисовка ----------
         function drawTree(t) {
-            const trunkH = Math.max(2, Math.floor(t.size / 5));
+            const trunkH = 5;
+            const trunkW = 2;
+            // Ствол
             ctx.fillStyle = '#2b1a12';
-            ctx.fillRect(Math.floor(t.x) - 1, Math.floor(t.y) - trunkH, 2, trunkH);
+            ctx.fillRect(Math.floor(t.x) - trunkW/2, Math.floor(t.y) - trunkH, trunkW, trunkH);
 
             let layerY = t.y - trunkH;
             let layerW = t.size;
-            const layerH = Math.max(2, Math.floor(t.size / 4));
+            const layerH = Math.max(4, Math.floor(t.size / 5));
+            const dark = '#1c3a1c';
+            const light = '#244a24';
+            const mid = '#1f401f';
 
-            ctx.fillStyle = '#1c3a1c';
-            for (let i = 0; i < 4; i++) {
-                ctx.fillRect(
-                    Math.floor(t.x - layerW / 2),
-                    Math.floor(layerY),
-                    Math.floor(layerW),
-                    layerH
-                );
+            for (let i = 0; i < 5; i++) {
+                ctx.fillStyle = i % 2 === 0 ? dark : light;
+                ctx.fillRect(Math.floor(t.x - layerW / 2), Math.floor(layerY), Math.floor(layerW), layerH);
+
+                // Неровные края (детерминированные)
+                const seed = Math.floor(t.rough + i * 10);
+                for (let j = 0; j < layerW; j += 2) {
+                    if ((seed * (j + 1)) % 7 < 3) {
+                        ctx.fillRect(Math.floor(t.x - layerW / 2 + j), Math.floor(layerY + layerH), 1, 1);
+                    }
+                    if ((seed * (j + 2)) % 5 < 2) {
+                        ctx.fillRect(Math.floor(t.x - layerW / 2 + j), Math.floor(layerY), 1, 1);
+                    }
+                }
                 layerY -= layerH;
-                layerW -= Math.max(2, Math.floor(t.size / 6));
+                layerW -= Math.max(3, Math.floor(t.size / 6));
             }
+            // Верхушка
+            ctx.fillStyle = light;
+            ctx.fillRect(Math.floor(t.x - 1), Math.floor(layerY - 1), 2, 2);
         }
 
         function drawCanopy() {
             // Тёмный навес
+            ctx.fillStyle = '#2a1515';
+            ctx.fillRect(0, 0, W, 6);
             ctx.fillStyle = '#3a1f1f';
-            ctx.fillRect(0, 0, W, 8);
-
-            ctx.fillStyle = '#4a2a2a';
-            ctx.fillRect(0, 6, W, 6);
-
-            ctx.fillStyle = '#3a1f1f';
-            for (let x = 0; x < W; x += 16) {
-                ctx.fillRect(x, 12, 16, 4);
-                ctx.fillRect(x + 2, 14, 12, 3);
-                ctx.fillRect(x + 4, 16, 8, 2);
+            ctx.fillRect(0, 5, W, 8);
+            ctx.fillStyle = '#2a1515';
+            for (let x = 0; x < W; x += 14) {
+                ctx.fillRect(x, 13, 14, 3);
+                ctx.fillRect(x + 1, 15, 12, 2);
+                ctx.fillRect(x + 2, 17, 10, 2);
             }
-
-            // Тёмные деревянные балки
-            ctx.fillStyle = '#241a14';
-            for (let x = 20; x < W; x += 80) {
-                ctx.fillRect(x, 0, 3, 20);
+            // Балки
+            ctx.fillStyle = '#1a100e';
+            for (let x = 15; x < W; x += 60) {
+                ctx.fillRect(x, 0, 4, 20);
             }
         }
 
-        function drawWallTop() {
-            // Верхняя часть стены за спиной лучника
+        function drawCastle() {
+            // Верхняя площадка (пол)
             ctx.fillStyle = '#4a4a55';
-            ctx.fillRect(0, 18, W, WALL_TOP_Y - 18);
+            ctx.fillRect(0, WALL_TOP_Y - 4, W, 4);
 
-            // Зубцы
-            ctx.fillStyle = '#5a5a65';
-            for (let x = 8; x < W; x += 20) {
-                ctx.fillRect(x, 18, 8, 6);
-            }
-
-            // Камни
-            ctx.fillStyle = '#3a3a45';
-            for (let y = 20; y < WALL_TOP_Y; y += 6) {
-                for (let x = 0; x < W; x += 10) {
-                    ctx.fillRect(x, y, 10, 1);
-                }
-            }
-
-            // Топ стены
-            ctx.fillStyle = '#5b5b6b';
-            ctx.fillRect(0, WALL_TOP_Y - 1, W, 1);
-        }
-
-        function drawWallFront() {
-            ctx.fillStyle = '#555568';
+            // Стена
+            ctx.fillStyle = '#4a4a55';
             ctx.fillRect(0, WALL_TOP_Y, W, WALL_BASE_Y - WALL_TOP_Y);
 
-            ctx.fillStyle = '#444455';
-            for (let y = WALL_TOP_Y; y < WALL_BASE_Y; y += 5) {
-                const offset = (Math.floor((y - WALL_TOP_Y) / 5) % 2) * 8;
+            // Зубцы (мерлоны)
+            ctx.fillStyle = '#555565';
+            for (let x = 6; x < W; x += 14) {
+                ctx.fillRect(x, 18, 8, 8);
+                ctx.fillStyle = '#666676';
+                ctx.fillRect(x + 1, 18, 6, 8);
+                ctx.fillStyle = '#555565';
+            }
+
+            // Каменная кладка
+            const rowH = 7;
+            for (let y = WALL_TOP_Y; y < WALL_BASE_Y; y += rowH) {
+                const offset = (Math.floor((y - WALL_TOP_Y) / rowH) % 2) * 8;
                 for (let x = -8 + offset; x < W; x += 16) {
-                    ctx.fillRect(x, y, 16, 1);
-                }
-                for (let x = 0; x < W; x += 16) {
-                    ctx.fillRect(x, y + 2, 1, 5);
+                    const r = (x * 7 + y * 13) % 30;
+                    ctx.fillStyle = r < 10 ? '#3a3a45' : (r < 20 ? '#505060' : '#454555');
+                    ctx.fillRect(x, y, 16, rowH);
+                    ctx.fillStyle = '#2a2a35';
+                    ctx.fillRect(x, y + rowH - 1, 16, 1);
+                    ctx.fillRect(x + 15, y, 1, rowH);
                 }
             }
+
+            // Мох и патина
+            ctx.fillStyle = '#2a3a1a';
+            ctx.fillRect(15, WALL_BASE_Y - 6, 22, 5);
+            ctx.fillRect(100, WALL_TOP_Y + 15, 30, 6);
+            ctx.fillRect(280, WALL_BASE_Y - 4, 15, 4);
+            ctx.fillRect(380, WALL_TOP_Y + 5, 18, 10);
+
+            // Трещины
+            ctx.fillStyle = '#1a1a20';
+            ctx.fillRect(45, WALL_TOP_Y + 4, 1, 15);
+            ctx.fillRect(45, WALL_TOP_Y + 12, 7, 1);
+            ctx.fillRect(45, WALL_TOP_Y + 7, 4, 1);
+
+            ctx.fillRect(230, WALL_TOP_Y + 8, 1, 18);
+            ctx.fillRect(230, WALL_TOP_Y + 20, 5, 1);
+
+            ctx.fillRect(350, WALL_TOP_Y + 3, 1, 12);
+            ctx.fillRect(350, WALL_TOP_Y + 10, 6, 1);
         }
 
         function drawTorch(x, y, now) {
             // Рукоять
-            ctx.fillStyle = '#5a3a2a';
+            ctx.fillStyle = '#3a2214';
             ctx.fillRect(x - 1, y, 2, 8);
+            ctx.fillStyle = '#5a3a2a';
+            ctx.fillRect(x - 2, y + 8, 4, 2);
 
-            // Пламя
-            const flicker = Math.sin(now * 0.02 + x) * 1.5 + Math.random() * 0.8;
+            // Пламя (анимация)
+            const flicker = Math.sin(now * 0.03 + x) * 1.2 + Math.random() * 1.0;
+            const h = 8 + Math.floor(flicker);
             ctx.fillStyle = '#ff8c00';
-            ctx.fillRect(x - 2, y - 6 + Math.floor(flicker), 4, 5);
+            ctx.fillRect(x - 2, y - h, 4, h);
             ctx.fillStyle = '#ffd700';
-            ctx.fillRect(x - 1, y - 4 + Math.floor(flicker * 0.5), 2, 3);
+            ctx.fillRect(x - 1, y - h + 2, 2, h - 2);
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(x, y - h + 3, 1, 2);
 
-            // Свечение
-            ctx.fillStyle = 'rgba(255,140,0,0.12)';
-            ctx.fillRect(x - 8, y - 12, 16, 20);
+            // Свечение факела
+            ctx.globalCompositeOperation = 'lighter';
+            const grad = ctx.createRadialGradient(x, y - 4, 2, x, y - 4, 35);
+            grad.addColorStop(0, 'rgba(255, 140, 0, 0.5)');
+            grad.addColorStop(0.5, 'rgba(255, 100, 0, 0.15)');
+            grad.addColorStop(1, 'rgba(255, 100, 0, 0)');
+            ctx.fillStyle = grad;
+            ctx.fillRect(x - 35, y - 39, 70, 70);
+            ctx.globalCompositeOperation = 'source-over';
         }
 
         function drawGround() {
-            ctx.fillStyle = '#1c2a1c';
+            ctx.fillStyle = '#162116';
             ctx.fillRect(0, GROUND_Y, W, H - GROUND_Y);
 
             for (const g of grassTufts) {
@@ -569,10 +641,11 @@
         }
 
         function drawPlayer() {
-            const sprite = PLAYER_SPRITE;
+            const sprite = PLAYER_BODY;
             const px = Math.floor(player.x - sprite[0].length / 2);
             const py = Math.floor(player.y - sprite.length);
 
+            // Рисуем тело
             for (let row = 0; row < sprite.length; row++) {
                 for (let col = 0; col < sprite[row].length; col++) {
                     const ch = sprite[row][col];
@@ -582,6 +655,44 @@
                     }
                 }
             }
+
+            // Рисуем лук и стрелу (поворачиваются за мышью)
+            const angle = Math.atan2(mouse.y - (player.y - 12), mouse.x - player.x);
+            ctx.save();
+            ctx.translate(player.x, player.y - 12);
+            ctx.rotate(angle);
+            
+            // Лук (дуга)
+            ctx.fillStyle = '#5a3a2a';
+            ctx.fillRect(4, -6, 2, 14);
+            ctx.fillStyle = '#8b5a2b';
+            ctx.fillRect(5, -5, 1, 12);
+            
+            // Тетива
+            ctx.fillStyle = '#d2b48c';
+            ctx.fillRect(4, -6, 8, 1);
+            ctx.fillRect(4, 7, 8, 1);
+            
+            // Стрела
+            ctx.fillStyle = '#e8e0c0';
+            ctx.fillRect(2, 0, 8, 1);
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(2, 0, 2, 1);
+            ctx.fillStyle = '#aaa';
+            ctx.fillRect(8, 0, 3, 1);
+            
+            ctx.restore();
+
+            // Колчан (виден за спиной)
+            ctx.fillStyle = '#4a2a1a';
+            ctx.fillRect(px + 14, py + 6, 4, 8);
+            ctx.fillStyle = '#3a1a0a';
+            ctx.fillRect(px + 14, py + 6, 4, 1);
+            // Стрелы в колчане
+            ctx.fillStyle = '#d2b48c';
+            ctx.fillRect(px + 15, py + 4, 1, 4);
+            ctx.fillRect(px + 16, py + 3, 1, 5);
+            ctx.fillRect(px + 15, py + 5, 1, 3);
         }
 
         function drawEnemy(e) {
@@ -603,21 +714,23 @@
             if (e.hp < e.maxHp) {
                 const w = sprite[0].length;
                 ctx.fillStyle = '#300';
-                ctx.fillRect(px, py - 2, w, 1);
-                ctx.fillStyle = '#a00';
-                ctx.fillRect(px, py - 2, Math.floor(w * (e.hp / e.maxHp)), 1);
+                ctx.fillRect(px, py - 3, w, 2);
+                ctx.fillStyle = '#0a0';
+                ctx.fillRect(px, py - 3, Math.floor(w * (e.hp / e.maxHp)), 2);
             }
         }
 
         function drawArrow(a) {
             ctx.fillStyle = '#e8e0c0';
-            ctx.fillRect(Math.floor(a.x), Math.floor(a.y), 3, 1);
+            ctx.fillRect(Math.floor(a.x), Math.floor(a.y), 4, 1);
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(Math.floor(a.x), Math.floor(a.y), 1, 1);
         }
 
         function drawRain() {
             for (const drop of rain) {
                 if (drop.y > CANOPY_BOTTOM) {
-                    ctx.fillStyle = 'rgba(120,160,255,0.45)';
+                    ctx.fillStyle = 'rgba(150, 180, 255, 0.4)';
                     ctx.fillRect(Math.floor(drop.x), Math.floor(drop.y), 1, drop.len);
                 }
             }
@@ -631,10 +744,20 @@
                 ctx.fillRect(Math.floor(p.x), Math.floor(p.y), 2, 2);
             }
 
-            // Лёгкое свечение вокруг
-            ctx.fillStyle = 'rgba(255,255,255,0.3)';
+            // Свечение
+            ctx.globalCompositeOperation = 'lighter';
+            ctx.fillStyle = 'rgba(200, 220, 255, 0.4)';
             for (const p of lightning.boltPoints) {
-                ctx.fillRect(Math.floor(p.x - 1), Math.floor(p.y - 1), 4, 4);
+                ctx.fillRect(Math.floor(p.x - 2), Math.floor(p.y - 2), 6, 6);
+            }
+            ctx.globalCompositeOperation = 'source-over';
+        }
+
+        function drawStars() {
+            for (const s of stars) {
+                const twinkle = 0.8 + Math.sin(gameTime * 5 + s.x * s.y) * 0.2;
+                ctx.fillStyle = `rgba(255, 255, 255, ${s.b * twinkle})`;
+                ctx.fillRect(Math.floor(s.x), Math.floor(s.y), 1, 1);
             }
         }
 
@@ -643,95 +766,157 @@
             const y = Math.floor(mouse.y);
 
             ctx.fillStyle = '#ffffff';
-            ctx.fillRect(x - 5, y, 11, 1);
-            ctx.fillRect(x, y - 5, 1, 11);
+            ctx.fillRect(x - 6, y, 13, 1);
+            ctx.fillRect(x, y - 6, 1, 13);
+            
+            ctx.fillStyle = '#ff0000';
+            ctx.fillRect(x - 1, y - 1, 3, 3);
         }
 
         function drawHUD() {
-            ctx.fillStyle = 'rgba(0,0,0,0.55)';
-            ctx.fillRect(0, 0, W, 18);
-
+            // Верхняя панель
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+            ctx.fillRect(0, 0, W, 16);
+            
             ctx.fillStyle = '#ffffff';
             ctx.font = '8px monospace';
             ctx.textAlign = 'left';
-            ctx.fillText(`Волна: ${wave}  Враги: ${enemies.length}  Счёт: ${score}`, 4, 10);
-
+            ctx.fillText(`Волна: ${wave} | Враги: ${enemies.length} | Счёт: ${score}`, 4, 10);
+            
             ctx.textAlign = 'right';
             ctx.fillText(`Замок: ${castleHP}`, W - 4, 10);
 
             ctx.textAlign = 'center';
-            ctx.fillText('A/D — движение | Мышь — прицел | ЛКМ — выстрел', W / 2, H - 8);
+            ctx.fillStyle = 'rgba(255,255,255,0.4)';
+            ctx.fillText('A/D — движение | ЛКМ — выстрел | P — пауза', W / 2, H - 6);
+            ctx.textAlign = 'left';
+        }
+
+        function drawMenu() {
+            // Фон
+            drawStars();
+            drawCanopy();
+            drawCastle();
+            for (const tx of [35, 120, 205, 290, 375, 450]) drawTorch(tx, 32, performance.now());
+            drawGround();
+            for (const tree of forest) drawTree(tree);
+            drawRain();
+            drawLightningBolt();
+
+            if (lightning.active && lightning.alpha > 0) {
+                ctx.fillStyle = `rgba(255,255,255,${lightning.alpha * 0.8})`;
+                ctx.fillRect(0, 0, W, H);
+            }
+
+            // Затемнение
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+            ctx.fillRect(0, 0, W, H);
+
+            // Название
+            ctx.fillStyle = '#d2b48c';
+            ctx.font = '24px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText('DARK ARCHER', W / 2, H / 2 - 40);
+            
+            ctx.fillStyle = '#8b0000';
+            ctx.font = '12px monospace';
+            ctx.fillText('DEFENSE', W / 2, H / 2 - 25);
+
+            // Кнопка старта
+            const bx = W / 2 - 50;
+            const by = H / 2 + 10;
+            const bw = 100;
+            const bh = 24;
+
+            // Подсветка кнопки при наведении
+            if (mouse.x > bx && mouse.x < bx + bw && mouse.y > by && mouse.y < by + bh) {
+                ctx.fillStyle = '#4a2a2a';
+                ctx.fillRect(bx, by, bw, bh);
+                ctx.fillStyle = '#ffffff';
+                ctx.fillText('START', W / 2, by + 16);
+            } else {
+                ctx.fillStyle = '#2a1a1a';
+                ctx.fillRect(bx, by, bw, bh);
+                ctx.fillStyle = '#d2b48c';
+                ctx.fillText('START', W / 2, by + 16);
+            }
+
+            // Подсказка
+            ctx.fillStyle = '#808080';
+            ctx.font = '8px monospace';
+            ctx.fillText('ENTER или клик для начала', W / 2, H - 20);
+            
+            ctx.textAlign = 'left';
+        }
+
+        function drawPauseOverlay() {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+            ctx.fillRect(0, 0, W, H);
+
+            ctx.fillStyle = '#ffffff';
+            ctx.font = '16px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText('ПАУЗА', W / 2, H / 2 - 10);
+            
+            ctx.fillStyle = '#d2b48c';
+            ctx.font = '8px monospace';
+            ctx.fillText('P — продолжить', W / 2, H / 2 + 10);
+            
             ctx.textAlign = 'left';
         }
 
         function drawGameOver() {
-            ctx.fillStyle = 'rgba(0,0,0,0.75)';
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
             ctx.fillRect(0, 0, W, H);
 
-            ctx.fillStyle = '#a00';
-            ctx.font = '16px monospace';
+            ctx.fillStyle = '#a00000';
+            ctx.font = '20px monospace';
             ctx.textAlign = 'center';
-            ctx.fillText('ЗАМОК ПАЛ', W / 2, H / 2 - 10);
-
-            ctx.fillStyle = '#fff';
+            ctx.fillText('ЗАМОК ПАЛ', W / 2, H / 2 - 15);
+            
+            ctx.fillStyle = '#ffffff';
             ctx.font = '8px monospace';
-            ctx.fillText('Нажмите R для рестарта', W / 2, H / 2 + 10);
-
+            ctx.fillText(`Волн пройдено: ${wave} | Убито орков: ${kills}`, W / 2, H / 2);
+            ctx.fillText('R — рестарт', W / 2, H / 2 + 15);
+            
             ctx.textAlign = 'left';
         }
 
+        // ---------- Основной цикл отрисовки ----------
         function draw(now) {
-            // Небо за стеной и навесом
-            ctx.fillStyle = '#0a0a14';
+            ctx.fillStyle = '#000000'; // ЧЕРНОЕ небо
             ctx.fillRect(0, 0, W, H);
 
+            if (gameState === STATE.MENU) {
+                drawMenu();
+                return;
+            }
+
+            // Отрисовка игры
+            drawStars();
             drawCanopy();
-            drawWallTop();
-            drawWallFront();
-
-            // Факелы на стене под навесом
-            const torchPositions = [30, 110, 190, 270, 350, 430];
-            for (const tx of torchPositions) {
-                drawTorch(tx, 26, now);
-            }
-
+            drawCastle();
+            for (const tx of [35, 120, 205, 290, 375, 450]) drawTorch(tx, 32, now);
             drawGround();
+            for (const tree of forest) drawTree(tree);
 
-            // Лес
-            for (const tree of forest) {
-                drawTree(tree);
-            }
-
-            // Враги
-            for (const e of enemies) {
-                drawEnemy(e);
-            }
-
-            // Лучник
+            for (const e of enemies) drawEnemy(e);
             drawPlayer();
-
-            // Стрелы
-            for (const a of arrows) {
-                drawArrow(a);
-            }
-
-            // Дождь
+            for (const a of arrows) drawArrow(a);
+            
             drawRain();
-
-            // Молния
             drawLightningBolt();
 
-            // Ослепляющая вспышка
             if (lightning.active && lightning.alpha > 0) {
                 ctx.fillStyle = `rgba(255,255,255,${lightning.alpha})`;
                 ctx.fillRect(0, 0, W, H);
             }
 
-            // Интерфейс
             drawHUD();
             drawCrosshair();
 
-            if (gameOver) drawGameOver();
+            if (gameState === STATE.PAUSED) drawPauseOverlay();
+            if (gameState === STATE.GAMEOVER) drawGameOver();
         }
 
         // ---------- Игровой цикл ----------
@@ -739,18 +924,36 @@
             const dt = Math.min((now - lastTime) / 1000, 0.1);
             lastTime = now;
 
-            update(dt, now);
-            draw(now);
+            // Обработка кликов
+            if (gameState === STATE.MENU && mouseDown && !clickProcessed) {
+                const bx = W / 2 - 50;
+                const by = H / 2 + 10;
+                const bw = 100;
+                const bh = 24;
+                if (mouse.x > bx && mouse.x < bx + bw && mouse.y > by && mouse.y < by + bh) {
+                    startGame();
+                }
+                clickProcessed = true;
+            }
 
+            if (gameState === STATE.PLAYING) {
+                update(dt, now);
+            } else {
+                update(dt, now); // Для молнии и дождя в меню/gameover
+                prevKeys = { ...keys };
+            }
+
+            draw(now);
             requestAnimationFrame(frame);
         }
 
         let lastTime = performance.now();
 
-        // Старт
+        // ---------- Инициализация ----------
         generateRain();
         generateGrass();
         generateForest();
+        generateStars();
         requestAnimationFrame(frame);
     </script>
 </body>
