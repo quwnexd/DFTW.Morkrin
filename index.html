@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dark Archer Defense — Управление мышью</title>
+    <title>Dark Archer Defense — Финальные правки</title>
     <style>
         * {
             margin: 0;
@@ -58,9 +58,6 @@
             const keys = {};
             const mouse = { x: W / 2, y: GROUND_Y + 60 };
             let mouseDown = false;
-            // Таймеры для наведения
-            let hoverStartTime = 0;
-            const HOVER_DELAY = 0.6; // секунд удержания
 
             const canvas = document.getElementById('game');
             const ctx = canvas.getContext('2d');
@@ -104,7 +101,6 @@
                 const key = e.key.toLowerCase();
                 keys[key] = true;
 
-                // Клавиатура как запасной вариант
                 if (gameState === STATE.MENU && (key === 'w' || key === 'enter')) {
                     startGame();
                 }
@@ -133,8 +129,52 @@
                 if (e.button === 0) mouseDown = true;
             });
             document.addEventListener('mouseup', (e) => {
-                if (e.button === 0) mouseDown = false;
+                if (e.button === 0) {
+                    mouseDown = false;
+                    // Обработка клика
+                    handleClick();
+                }
             });
+
+            // Функция клика по кнопкам
+            function handleClick() {
+                const mx = mouse.x;
+                const my = mouse.y;
+
+                // Кнопка START в меню
+                if (gameState === STATE.MENU) {
+                    const bx = W / 2 - 50;
+                    const by = H / 2 + 10;
+                    const bw = 100;
+                    const bh = 24;
+                    if (mx > bx && mx < bx + bw && my > by && my < by + bh) {
+                        startGame();
+                    }
+                }
+
+                // Кнопка паузы в HUD
+                if (gameState === STATE.PLAYING || gameState === STATE.PAUSED) {
+                    const px = W - 24;   // рядом со счетом
+                    const py = 2;
+                    const pw = 20;
+                    const ph = 12;
+                    if (mx > px && mx < px + pw && my > py && my < py + ph) {
+                        gameState = (gameState === STATE.PLAYING) ? STATE.PAUSED : STATE.PLAYING;
+                    }
+                }
+
+                // Кнопка RESTART после поражения
+                if (gameState === STATE.GAMEOVER) {
+                    const cx = W / 2 - 40;
+                    const cy = H / 2 + 10;
+                    const cw = 80;
+                    const ch = 20;
+                    if (mx > cx && mx < cx + cw && my > cy && my < cy + ch) {
+                        resetGame();
+                        gameState = STATE.PLAYING;
+                    }
+                }
+            }
 
             // ---------- Глобальные объекты ----------
             const player = {
@@ -252,28 +292,31 @@
 
             function generateForest() {
                 forest = [];
-                // Нижняя кромка — реже
-                for (let x = -15; x < W + 15; x += 32 + Math.floor(Math.random() * 10)) {
+                // Нижняя кромка — больше деревьев, но с интервалом ~22-28 пикселей
+                for (let x = -15; x < W + 15; x += 22 + Math.floor(Math.random() * 6)) {
                     forest.push({
-                        x: x + Math.random() * 12,
+                        x: x + Math.random() * 8,
                         y: H - 2,
-                        size: 22 + Math.random() * 14,
-                        rough: Math.random() * 100
+                        size: 20 + Math.random() * 16,
+                        rough: Math.random() * 100,
+                        variant: Math.floor(Math.random() * 3)
                     });
                 }
-                // Боковые кромки — реже
-                for (let y = GROUND_Y + 15; y < H; y += 40 + Math.floor(Math.random() * 15)) {
+                // Боковые кромки — больше деревьев
+                for (let y = GROUND_Y + 10; y < H; y += 24 + Math.floor(Math.random() * 10)) {
                     forest.push({
                         x: -4 + Math.random() * 4,
-                        y: y + Math.random() * 8,
-                        size: 14 + Math.random() * 10,
-                        rough: Math.random() * 100
+                        y: y + Math.random() * 6,
+                        size: 14 + Math.random() * 12,
+                        rough: Math.random() * 100,
+                        variant: Math.floor(Math.random() * 3)
                     });
                     forest.push({
                         x: W + 4 - Math.random() * 4,
-                        y: y + Math.random() * 8,
-                        size: 14 + Math.random() * 10,
-                        rough: Math.random() * 100
+                        y: y + Math.random() * 6,
+                        size: 14 + Math.random() * 12,
+                        rough: Math.random() * 100,
+                        variant: Math.floor(Math.random() * 3)
                     });
                 }
             }
@@ -460,20 +503,32 @@
                 let layerY = t.y - trunkH;
                 let layerW = t.size;
                 const layerH = Math.max(4, Math.floor(t.size / 5));
+                // Разные оттенки для красоты
                 const dark = '#1c3a1c';
                 const light = '#244a24';
+                const mid = '#1f401f';
+                const light2 = '#2a502a';
 
                 for (let i = 0; i < 5; i++) {
                     ctx.fillStyle = i % 2 === 0 ? dark : light;
                     ctx.fillRect(Math.floor(t.x - layerW / 2), Math.floor(layerY), Math.floor(layerW), layerH);
                     const seed = Math.floor(t.rough + i * 10);
+                    // Добавляем неровности и мелкие ветки
                     for (let j = 0; j < layerW; j += 2) {
                         if ((seed * (j + 1)) % 7 < 3) {
+                            ctx.fillStyle = mid;
                             ctx.fillRect(Math.floor(t.x - layerW / 2 + j), Math.floor(layerY + layerH), 1, 1);
                         }
                         if ((seed * (j + 2)) % 5 < 2) {
+                            ctx.fillStyle = light2;
                             ctx.fillRect(Math.floor(t.x - layerW / 2 + j), Math.floor(layerY), 1, 1);
                         }
+                    }
+                    // Ветки по бокам
+                    if (i === 1 || i === 3) {
+                        ctx.fillStyle = dark;
+                        ctx.fillRect(Math.floor(t.x - layerW / 2 - 1), Math.floor(layerY + 1), 2, 1);
+                        ctx.fillRect(Math.floor(t.x + layerW / 2 - 1), Math.floor(layerY + 1), 2, 1);
                     }
                     layerY -= layerH;
                     layerW -= Math.max(3, Math.floor(t.size / 6));
@@ -500,11 +555,13 @@
             }
 
             function drawCastle() {
+                // Зубцы рисуем сначала (на заднем плане) или после? Сделаем после стены, но более выразительными.
                 ctx.fillStyle = '#4a4a55';
                 ctx.fillRect(0, WALL_TOP_Y - 4, W, 4);
                 ctx.fillStyle = '#4a4a55';
                 ctx.fillRect(0, WALL_TOP_Y, W, WALL_BASE_Y - WALL_TOP_Y);
 
+                // Зубцы (поверх стены)
                 ctx.fillStyle = '#555565';
                 for (let x = 6; x < W; x += 14) {
                     ctx.fillRect(x, 18, 8, 8);
@@ -513,6 +570,7 @@
                     ctx.fillStyle = '#555565';
                 }
 
+                // Каменная кладка
                 const rowH = 7;
                 for (let y = WALL_TOP_Y; y < WALL_BASE_Y; y += rowH) {
                     const offset = (Math.floor((y - WALL_TOP_Y) / rowH) % 2) * 8;
@@ -526,12 +584,14 @@
                     }
                 }
 
+                // Мох и патина
                 ctx.fillStyle = '#2a3a1a';
                 ctx.fillRect(15, WALL_BASE_Y - 6, 22, 5);
                 ctx.fillRect(100, WALL_TOP_Y + 15, 30, 6);
                 ctx.fillRect(280, WALL_BASE_Y - 4, 15, 4);
                 ctx.fillRect(380, WALL_TOP_Y + 5, 18, 10);
 
+                // Трещины
                 ctx.fillStyle = '#1a1a20';
                 ctx.fillRect(45, WALL_TOP_Y + 4, 1, 15);
                 ctx.fillRect(45, WALL_TOP_Y + 12, 7, 1);
@@ -562,6 +622,7 @@
                 ctx.fillStyle = '#ffffff';
                 ctx.fillRect(x, y - 8 - h + 3, 1, 2);
 
+                // Свечение, но не влияет на курсор
                 ctx.globalCompositeOperation = 'lighter';
                 const grad = ctx.createRadialGradient(x, y - 12, 2, x, y - 12, 35);
                 grad.addColorStop(0, 'rgba(255, 140, 0, 0.5)');
@@ -719,95 +780,27 @@
                 ctx.fillText(`Волна: ${wave} | Враги: ${enemies.length} | Счёт: ${score}`, 4, 10);
                 ctx.textAlign = 'right';
                 ctx.fillText(`Замок: ${castleHP}`, W - 4, 10);
-                ctx.textAlign = 'center';
-                ctx.fillStyle = 'rgba(255,255,255,0.4)';
-                ctx.fillText('A/D — движение | ЛКМ — выстрел | P — пауза', W / 2, H - 6);
                 ctx.textAlign = 'left';
-            }
 
-            // ---------- Визуальные области для наведения ----------
-            function drawHoverZones() {
-                // Кнопка START (в меню)
-                if (gameState === STATE.MENU) {
-                    const bx = W / 2 - 50;
-                    const by = H / 2 + 10;
-                    const bw = 100;
-                    const bh = 24;
-                    // Подсветка при наведении
-                    if (mouse.x > bx && mouse.x < bx + bw && mouse.y > by && mouse.y < by + bh) {
-                        ctx.fillStyle = '#4a2a2a';
-                        ctx.fillRect(bx, by, bw, bh);
-                        ctx.fillStyle = '#ffffff';
-                        ctx.font = '8px monospace';
-                        ctx.textAlign = 'center';
-                        ctx.fillText('START', W / 2, by + 16);
-                        // Прогресс наведения
-                        const elapsed = (performance.now() - hoverStartTime) / 1000;
-                        const progress = Math.min(elapsed / HOVER_DELAY, 1);
-                        ctx.fillStyle = '#00ff00';
-                        ctx.fillRect(bx + 2, by + bh - 2, Math.floor((bw - 4) * progress), 2);
-                    } else {
-                        ctx.fillStyle = '#2a1a1a';
-                        ctx.fillRect(bx, by, bw, bh);
-                        ctx.fillStyle = '#d2b48c';
-                        ctx.font = '8px monospace';
-                        ctx.textAlign = 'center';
-                        ctx.fillText('START', W / 2, by + 16);
-                    }
-                }
-
-                // Кнопка паузы (в игре)
+                // Кнопка паузы рядом со счётом (справа сверху)
+                const px = W - 24;
+                const py = 2;
+                const pw = 20;
+                const ph = 12;
                 if (gameState === STATE.PLAYING || gameState === STATE.PAUSED) {
-                    const px = W - 20;
-                    const py = 4;
-                    const pw = 16;
-                    const ph = 12;
-                    if (mouse.x > px && mouse.x < px + pw && mouse.y > py && mouse.y < py + ph) {
-                        ctx.fillStyle = '#555';
-                        ctx.fillRect(px, py, pw, ph);
-                        ctx.fillStyle = '#fff';
-                        ctx.fillRect(px + 4, py + 2, 2, 8);
-                        ctx.fillRect(px + 10, py + 2, 2, 8);
-                        // Прогресс
-                        const elapsed = (performance.now() - hoverStartTime) / 1000;
-                        const progress = Math.min(elapsed / 0.4, 1);
-                        ctx.fillStyle = '#00ff00';
-                        ctx.fillRect(px, py + ph - 1, Math.floor(pw * progress), 1);
-                    } else {
-                        ctx.fillStyle = '#444';
-                        ctx.fillRect(px, py, pw, ph);
-                        ctx.fillStyle = '#ddd';
+                    ctx.fillStyle = '#444';
+                    ctx.fillRect(px, py, pw, ph);
+                    ctx.fillStyle = '#ddd';
+                    ctx.fillRect(px + 4, py + 2, 2, 8);
+                    ctx.fillRect(px + 10, py + 2, 2, 8);
+                    if (gameState === STATE.PAUSED) {
+                        ctx.fillStyle = '#ff0000';
                         ctx.fillRect(px + 4, py + 2, 2, 8);
                         ctx.fillRect(px + 10, py + 2, 2, 8);
                     }
                 }
 
-                // Кнопка рестарта (game over)
-                if (gameState === STATE.GAMEOVER) {
-                    const cx = W / 2 - 40;
-                    const cy = H / 2 + 10;
-                    const cw = 80;
-                    const ch = 20;
-                    if (mouse.x > cx && mouse.x < cx + cw && mouse.y > cy && mouse.y < cy + ch) {
-                        ctx.fillStyle = '#5a2a2a';
-                        ctx.fillRect(cx, cy, cw, ch);
-                        ctx.fillStyle = '#fff';
-                        ctx.font = '8px monospace';
-                        ctx.textAlign = 'center';
-                        ctx.fillText('RESTART', W / 2, cy + 14);
-                        const elapsed = (performance.now() - hoverStartTime) / 1000;
-                        const progress = Math.min(elapsed / HOVER_DELAY, 1);
-                        ctx.fillStyle = '#00ff00';
-                        ctx.fillRect(cx + 2, cy + ch - 2, Math.floor((cw - 4) * progress), 2);
-                    } else {
-                        ctx.fillStyle = '#2a1a1a';
-                        ctx.fillRect(cx, cy, cw, ch);
-                        ctx.fillStyle = '#d2b48c';
-                        ctx.font = '8px monospace';
-                        ctx.textAlign = 'center';
-                        ctx.fillText('RESTART', W / 2, cy + 14);
-                    }
-                }
+                // Никаких подсказок внизу
             }
 
             function drawMenu() {
@@ -836,12 +829,23 @@
                 ctx.font = '12px monospace';
                 ctx.fillText('DEFENSE', W / 2, H / 2 - 25);
 
-                // Зона кнопки START рисуется через drawHoverZones
-                drawHoverZones();
+                const bx = W / 2 - 50;
+                const by = H / 2 + 10;
+                const bw = 100;
+                const bh = 24;
 
-                ctx.fillStyle = '#808080';
-                ctx.font = '8px monospace';
-                ctx.fillText('Наведите на START и удерживайте 0.6 сек', W / 2, H - 20);
+                // Подсветка кнопки при наведении
+                if (mouse.x > bx && mouse.x < bx + bw && mouse.y > by && mouse.y < by + bh) {
+                    ctx.fillStyle = '#4a2a2a';
+                    ctx.fillRect(bx, by, bw, bh);
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillText('START', W / 2, by + 16);
+                } else {
+                    ctx.fillStyle = '#2a1a1a';
+                    ctx.fillRect(bx, by, bw, bh);
+                    ctx.fillStyle = '#d2b48c';
+                    ctx.fillText('START', W / 2, by + 16);
+                }
                 ctx.textAlign = 'left';
             }
 
@@ -854,10 +858,8 @@
                 ctx.fillText('ПАУЗА', W / 2, H / 2 - 10);
                 ctx.fillStyle = '#d2b48c';
                 ctx.font = '8px monospace';
-                ctx.fillText('Наведите на значок паузы (справа сверху) или нажмите P', W / 2, H / 2 + 10);
+                ctx.fillText('Кликните по значку паузы', W / 2, H / 2 + 10);
                 ctx.textAlign = 'left';
-                // Значок паузы рисуется в drawHoverZones
-                drawHoverZones();
             }
 
             function drawGameOver() {
@@ -870,9 +872,27 @@
                 ctx.fillStyle = '#ffffff';
                 ctx.font = '8px monospace';
                 ctx.fillText(`Волн пройдено: ${wave} | Убито орков: ${kills}`, W / 2, H / 2);
-                ctx.fillText('Наведите на RESTART и удерживайте 0.6 сек', W / 2, H / 2 + 30);
+                ctx.fillText('Кликните на RESTART', W / 2, H / 2 + 30);
                 ctx.textAlign = 'left';
-                drawHoverZones();
+
+                const cx = W / 2 - 40;
+                const cy = H / 2 + 10;
+                const cw = 80;
+                const ch = 20;
+                if (mouse.x > cx && mouse.x < cx + cw && mouse.y > cy && mouse.y < cy + ch) {
+                    ctx.fillStyle = '#5a2a2a';
+                    ctx.fillRect(cx, cy, cw, ch);
+                    ctx.fillStyle = '#fff';
+                    ctx.textAlign = 'center';
+                    ctx.fillText('RESTART', W / 2, cy + 14);
+                } else {
+                    ctx.fillStyle = '#2a1a1a';
+                    ctx.fillRect(cx, cy, cw, ch);
+                    ctx.fillStyle = '#d2b48c';
+                    ctx.textAlign = 'center';
+                    ctx.fillText('RESTART', W / 2, cy + 14);
+                }
+                ctx.textAlign = 'left';
             }
 
             // ---------- Основной цикл ----------
@@ -882,10 +902,11 @@
 
                 if (gameState === STATE.MENU) {
                     drawMenu();
+                    // Курсор рисуем в самом конце, чтобы не перекрывался свечением
+                    drawCrosshair();
                     return;
                 }
 
-                // Отрисовка игры
                 drawStars();
                 drawCanopy();
                 drawCastle();
@@ -906,72 +927,12 @@
                 }
 
                 drawHUD();
-                drawCrosshair();
-                drawHoverZones();
 
                 if (gameState === STATE.PAUSED) drawPauseOverlay();
                 if (gameState === STATE.GAMEOVER) drawGameOver();
-            }
 
-            // ---------- Логика наведения ----------
-            function handleHover(now) {
-                // Проверяем зону START в меню
-                if (gameState === STATE.MENU) {
-                    const bx = W / 2 - 50;
-                    const by = H / 2 + 10;
-                    const bw = 100;
-                    const bh = 24;
-                    const isInside = mouse.x > bx && mouse.x < bx + bw && mouse.y > by && mouse.y < by + bh;
-                    if (isInside) {
-                        if (hoverStartTime === 0) hoverStartTime = now;
-                        const elapsed = (now - hoverStartTime) / 1000;
-                        if (elapsed >= HOVER_DELAY) {
-                            startGame();
-                            hoverStartTime = 0;
-                        }
-                    } else {
-                        hoverStartTime = 0;
-                    }
-                }
-
-                // Проверяем зону паузы в игре
-                if (gameState === STATE.PLAYING || gameState === STATE.PAUSED) {
-                    const px = W - 20;
-                    const py = 4;
-                    const pw = 16;
-                    const ph = 12;
-                    const isInside = mouse.x > px && mouse.x < px + pw && mouse.y > py && mouse.y < py + ph;
-                    if (isInside) {
-                        if (hoverStartTime === 0) hoverStartTime = now;
-                        const elapsed = (now - hoverStartTime) / 1000;
-                        if (elapsed >= 0.4) {
-                            gameState = (gameState === STATE.PLAYING) ? STATE.PAUSED : STATE.PLAYING;
-                            hoverStartTime = 0;
-                        }
-                    } else {
-                        hoverStartTime = 0;
-                    }
-                }
-
-                // Проверяем зону RESTART после поражения
-                if (gameState === STATE.GAMEOVER) {
-                    const cx = W / 2 - 40;
-                    const cy = H / 2 + 10;
-                    const cw = 80;
-                    const ch = 20;
-                    const isInside = mouse.x > cx && mouse.x < cx + cw && mouse.y > cy && mouse.y < cy + ch;
-                    if (isInside) {
-                        if (hoverStartTime === 0) hoverStartTime = now;
-                        const elapsed = (now - hoverStartTime) / 1000;
-                        if (elapsed >= HOVER_DELAY) {
-                            resetGame();
-                            gameState = STATE.PLAYING;
-                            hoverStartTime = 0;
-                        }
-                    } else {
-                        hoverStartTime = 0;
-                    }
-                }
+                // Курсор рисуем последним, чтобы он был поверх всего
+                drawCrosshair();
             }
 
             // ---------- Игровой цикл ----------
@@ -979,7 +940,6 @@
                 const dt = Math.min((now - lastTime) / 1000, 0.1);
                 lastTime = now;
 
-                handleHover(now);
                 update(dt, now);
                 draw(now);
 
