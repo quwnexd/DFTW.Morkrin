@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dark Archer Defense — Улучшенная версия</title>
+    <title>Dark Archer Defense — Исправленная версия</title>
     <style>
         * {
             margin: 0;
@@ -46,10 +46,10 @@
         // ---------- Основные параметры ----------
         const W = 480;
         const H = 270;
-        const CANOPY_BOTTOM = 26;   // Нижний край навеса
-        const WALL_TOP_Y = 58;      // Уровень ног лучника
-        const WALL_BASE_Y = 84;     // Основание стены
-        const GROUND_Y = 84;        // Начало поляны
+        const CANOPY_BOTTOM = 26;
+        const WALL_TOP_Y = 58;
+        const WALL_BASE_Y = 84;
+        const GROUND_Y = 84;
 
         // ---------- Состояния игры ----------
         const STATE = {
@@ -70,8 +70,20 @@
         window.addEventListener('keydown', (e) => {
             const key = e.key.toLowerCase();
             keys[key] = true;
-            if (key === 'r' && gameState === STATE.GAMEOVER) resetGame();
-            if (key === 'enter' && gameState === STATE.MENU) startGame();
+
+            // Запуск игры: клавиша W, Enter или клик по кнопке
+            if (key === 'w' && gameState === STATE.MENU) {
+                startGame();
+            }
+            if (key === 'enter' && gameState === STATE.MENU) {
+                startGame();
+            }
+            if (key === 'r' && gameState === STATE.GAMEOVER) {
+                resetGame();
+            }
+            if (key === 'p' && (gameState === STATE.PLAYING || gameState === STATE.PAUSED)) {
+                gameState = (gameState === STATE.PLAYING) ? STATE.PAUSED : STATE.PLAYING;
+            }
         });
 
         window.addEventListener('keyup', (e) => {
@@ -87,16 +99,14 @@
         });
 
         canvas.addEventListener('mousedown', (e) => {
-            if (e.button === 0) {
-                mouseDown = true;
-            }
+            if (e.button === 0) mouseDown = true;
         });
 
         canvas.addEventListener('mouseup', (e) => {
             if (e.button === 0) mouseDown = false;
         });
 
-        // Обработка кликов (для меню)
+        // Клик по кнопке START в меню
         canvas.addEventListener('click', (e) => {
             if (gameState === STATE.MENU) {
                 const rect = canvas.getBoundingClientRect();
@@ -156,16 +166,14 @@
         let animFrame = 0;
         let gameTime = 0;
 
-        // ---------- Спрайты (Пиксель-арт) ----------
-
-        // Лучник (20x18) — только плащ с капюшоном (без волос и лица)
+        // ---------- Спрайты ----------
         const PLAYER_COLORS = {
-            C: '#3b2f42', // основной плащ
-            c: '#2c1f2f', // тень плаща
-            Q: '#5a3a2a', // колчан
-            B: '#8b5a2b', // лук (используется отдельно)
-            S: '#d2b48c', // кожа (может не использоваться)
-            A: '#e8e0c0', // стрела (отдельно)
+            C: '#3b2f42',
+            c: '#2c1f2f',
+            Q: '#5a3a2a',
+            B: '#8b5a2b',
+            S: '#d2b48c',
+            A: '#e8e0c0',
         };
 
         const PLAYER_BODY = [
@@ -189,7 +197,6 @@
             '.......CCCCC.......'
         ];
 
-        // Орк (16x18) — улучшенный
         const ORC_COLORS = {
             G: '#2e4a1e',
             g: '#3a5c2a',
@@ -256,7 +263,6 @@
 
         function generateForest() {
             forest = [];
-            // Нижняя кромка (спавн)
             for (let x = -10; x < W + 10; x += 10) {
                 forest.push({
                     x: x + Math.random() * 8,
@@ -265,7 +271,6 @@
                     rough: Math.random() * 100
                 });
             }
-            // Боковые кромки
             for (let y = GROUND_Y + 10; y < H; y += 16) {
                 forest.push({
                     x: -4,
@@ -284,7 +289,6 @@
 
         // ---------- Враги и волны ----------
         function spawnEnemy() {
-            // Спавн ТОЛЬКО снизу
             const x = 20 + Math.random() * (W - 40);
             const y = H + 12;
 
@@ -293,7 +297,7 @@
                 y,
                 targetX: 40 + Math.random() * (W - 80),
                 targetY: WALL_BASE_Y - 2,
-                hp: 2 + Math.floor(wave * 1.2),   // уменьшенное HP
+                hp: 2 + Math.floor(wave * 1.2),
                 maxHp: 2 + Math.floor(wave * 1.2),
                 speed: 14 + Math.random() * 6 + wave * 0.8,
                 radius: 7,
@@ -364,7 +368,7 @@
                 life: 2
             });
 
-            player.cooldown = 1.3;   // увеличенная перезарядка
+            player.cooldown = 0.5;   // новая перезарядка 0.5 сек
         }
 
         // ---------- Молния ----------
@@ -411,7 +415,10 @@
                 }
             }
 
-            if (gameState !== STATE.PLAYING) return;
+            if (gameState !== STATE.PLAYING) {
+                prevKeys = { ...keys };
+                return;
+            }
 
             // Движение игрока
             if (keys['a'] || keys['arrowleft'] || keys['ф']) player.x -= player.speed * dt;
@@ -517,7 +524,6 @@
             const layerH = Math.max(4, Math.floor(t.size / 5));
             const dark = '#1c3a1c';
             const light = '#244a24';
-            const mid = '#1f401f';
 
             for (let i = 0; i < 5; i++) {
                 ctx.fillStyle = i % 2 === 0 ? dark : light;
@@ -557,15 +563,12 @@
         }
 
         function drawCastle() {
-            // Верхняя площадка (пол)
             ctx.fillStyle = '#4a4a55';
             ctx.fillRect(0, WALL_TOP_Y - 4, W, 4);
 
-            // Стена
             ctx.fillStyle = '#4a4a55';
             ctx.fillRect(0, WALL_TOP_Y, W, WALL_BASE_Y - WALL_TOP_Y);
 
-            // Зубцы (мерлоны)
             ctx.fillStyle = '#555565';
             for (let x = 6; x < W; x += 14) {
                 ctx.fillRect(x, 18, 8, 8);
@@ -574,7 +577,6 @@
                 ctx.fillStyle = '#555565';
             }
 
-            // Каменная кладка
             const rowH = 7;
             for (let y = WALL_TOP_Y; y < WALL_BASE_Y; y += rowH) {
                 const offset = (Math.floor((y - WALL_TOP_Y) / rowH) % 2) * 8;
@@ -588,14 +590,12 @@
                 }
             }
 
-            // Мох и патина
             ctx.fillStyle = '#2a3a1a';
             ctx.fillRect(15, WALL_BASE_Y - 6, 22, 5);
             ctx.fillRect(100, WALL_TOP_Y + 15, 30, 6);
             ctx.fillRect(280, WALL_BASE_Y - 4, 15, 4);
             ctx.fillRect(380, WALL_TOP_Y + 5, 18, 10);
 
-            // Трещины
             ctx.fillStyle = '#1a1a20';
             ctx.fillRect(45, WALL_TOP_Y + 4, 1, 15);
             ctx.fillRect(45, WALL_TOP_Y + 12, 7, 1);
@@ -609,17 +609,17 @@
         function drawTorch(x, y, now) {
             // Крепление на стене
             ctx.fillStyle = '#1a100e';
-            ctx.fillRect(x - 2, y, 4, 2);  // скоба
+            ctx.fillRect(x - 2, y, 4, 2);
             ctx.fillStyle = '#3a2214';
             ctx.fillRect(x - 1, y, 2, 1);
 
-            // Рукоять (вверх от точки крепления)
+            // Рукоять
             ctx.fillStyle = '#3a2214';
             ctx.fillRect(x - 1, y - 8, 2, 8);
             ctx.fillStyle = '#5a3a2a';
             ctx.fillRect(x - 2, y - 8, 4, 2);
 
-            // Пламя (анимация)
+            // Пламя
             const flicker = Math.sin(now * 0.03 + x) * 1.2 + Math.random() * 1.0;
             const h = 8 + Math.floor(flicker);
             ctx.fillStyle = '#ff8c00';
@@ -629,7 +629,7 @@
             ctx.fillStyle = '#ffffff';
             ctx.fillRect(x, y - 8 - h + 3, 1, 2);
 
-            // Свечение факела
+            // Свечение
             ctx.globalCompositeOperation = 'lighter';
             const grad = ctx.createRadialGradient(x, y - 12, 2, x, y - 12, 35);
             grad.addColorStop(0, 'rgba(255, 140, 0, 0.5)');
@@ -655,7 +655,6 @@
             const px = Math.floor(player.x - sprite[0].length / 2);
             const py = Math.floor(player.y - sprite.length);
 
-            // Рисуем тело (плащ с капюшоном)
             for (let row = 0; row < sprite.length; row++) {
                 for (let col = 0; col < sprite[row].length; col++) {
                     const ch = sprite[row][col];
@@ -666,24 +665,20 @@
                 }
             }
 
-            // Рисуем лук и стрелу (поворачиваются за мышью)
             const angle = Math.atan2(mouse.y - (player.y - 12), mouse.x - player.x);
             ctx.save();
             ctx.translate(player.x, player.y - 12);
             ctx.rotate(angle);
             
-            // Лук
             ctx.fillStyle = '#5a3a2a';
             ctx.fillRect(4, -6, 2, 14);
             ctx.fillStyle = '#8b5a2b';
             ctx.fillRect(5, -5, 1, 12);
             
-            // Тетива
             ctx.fillStyle = '#d2b48c';
             ctx.fillRect(4, -6, 8, 1);
             ctx.fillRect(4, 7, 8, 1);
             
-            // Стрела
             ctx.fillStyle = '#e8e0c0';
             ctx.fillRect(2, 0, 8, 1);
             ctx.fillStyle = '#fff';
@@ -693,7 +688,6 @@
             
             ctx.restore();
 
-            // Колчан
             ctx.fillStyle = '#4a2a1a';
             ctx.fillRect(px + 14, py + 6, 4, 8);
             ctx.fillStyle = '#3a1a0a';
@@ -844,7 +838,7 @@
 
             ctx.fillStyle = '#808080';
             ctx.font = '8px monospace';
-            ctx.fillText('ENTER или клик для начала', W / 2, H - 20);
+            ctx.fillText('W или ENTER или клик для начала', W / 2, H - 20);
             
             ctx.textAlign = 'left';
         }
@@ -923,19 +917,10 @@
             const dt = Math.min((now - lastTime) / 1000, 0.1);
             lastTime = now;
 
-            // Обработка паузы
-            if (keys['p'] && !prevKeys['p']) {
-                if (gameState === STATE.PLAYING) {
-                    gameState = STATE.PAUSED;
-                } else if (gameState === STATE.PAUSED) {
-                    gameState = STATE.PLAYING;
-                }
-            }
-
             if (gameState === STATE.PLAYING) {
                 update(dt, now);
             } else {
-                update(dt, now); // для эффектов (молния, дождь)
+                update(dt, now); // для эффектов
                 prevKeys = { ...keys };
             }
 
