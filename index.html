@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dark Archer Defense — Финальные правки</title>
+    <title>Dark Archer Defense — Правки интерфейса и декора</title>
     <style>
         * {
             margin: 0;
@@ -41,9 +41,9 @@
             const W = 480;
             const H = 270;
             const CANOPY_BOTTOM = 26;
-            const WALL_TOP_Y = 58;
-            const WALL_BASE_Y = 84;
-            const GROUND_Y = 84;
+            const WALL_TOP_Y = 58;   // верх стены (пол)
+            const WALL_BASE_Y = 84;  // основание стены
+            const GROUND_Y = 84;     // начало поляны
 
             // ---------- Состояния игры ----------
             const STATE = {
@@ -58,7 +58,7 @@
             const keys = {};
             const mouse = { x: W / 2, y: GROUND_Y + 60 };
             let mouseDown = false;
-            let isOverUI = false; // флаг, что курсор над UI-кнопкой
+            let isOverUI = false;
 
             const canvas = document.getElementById('game');
             const ctx = canvas.getContext('2d');
@@ -125,10 +125,8 @@
                 mouse.x = (e.clientX - rect.left) * scaleX;
                 mouse.y = (e.clientY - rect.top) * scaleY;
 
-                // Проверяем, над какими кнопками находится курсор
                 isOverUI = false;
 
-                // Кнопка START в меню
                 if (gameState === STATE.MENU) {
                     const bx = W / 2 - 50;
                     const by = H / 2 + 10;
@@ -139,9 +137,9 @@
                     }
                 }
 
-                // Кнопка паузы в HUD
                 if (gameState === STATE.PLAYING || gameState === STATE.PAUSED) {
-                    const px = 130;  // рядом со счётом (слева)
+                    // Кнопка паузы вычисляется динамически в drawHUD, но для проверки используем постоянную зону (примерно)
+                    const px = 180; // будет пересчитано при отрисовке, но для кликов используем приблизительно
                     const py = 2;
                     const pw = 20;
                     const ph = 12;
@@ -150,7 +148,6 @@
                     }
                 }
 
-                // Кнопка RESTART после поражения
                 if (gameState === STATE.GAMEOVER) {
                     const cx = W / 2 - 40;
                     const cy = H / 2 + 10;
@@ -164,7 +161,6 @@
 
             document.addEventListener('mousedown', (e) => {
                 if (e.button === 0) {
-                    // Разрешаем стрельбу только если не над UI
                     if (!isOverUI && gameState === STATE.PLAYING) {
                         mouseDown = true;
                     } else {
@@ -183,7 +179,6 @@
                 const mx = mouse.x;
                 const my = mouse.y;
 
-                // Кнопка START в меню
                 if (gameState === STATE.MENU) {
                     const bx = W / 2 - 50;
                     const by = H / 2 + 10;
@@ -194,18 +189,17 @@
                     }
                 }
 
-                // Кнопка паузы
                 if (gameState === STATE.PLAYING || gameState === STATE.PAUSED) {
-                    const px = 130;
+                    // Кнопка паузы: динамически вычислим её положение по последнему отрисованному HUD
+                    const pauseX = pauseButtonX || 180; // будем хранить глобально
                     const py = 2;
                     const pw = 20;
                     const ph = 12;
-                    if (mx > px && mx < px + pw && my > py && my < py + ph) {
+                    if (mx > pauseX && mx < pauseX + pw && my > py && my < py + ph) {
                         gameState = (gameState === STATE.PLAYING) ? STATE.PAUSED : STATE.PLAYING;
                     }
                 }
 
-                // Кнопка RESTART
                 if (gameState === STATE.GAMEOVER) {
                     const cx = W / 2 - 40;
                     const cy = H / 2 + 10;
@@ -253,6 +247,7 @@
                 alpha: 0
             };
             let gameTime = 0;
+            let pauseButtonX = 180; // глобальная переменная для позиции кнопки паузы
 
             // ---------- Спрайты ----------
             const PLAYER_COLORS = { C: '#3b2f42', c: '#2c1f2f', Q: '#5a3a2a' };
@@ -340,15 +335,17 @@
                 bushes = [];
                 rocks = [];
 
-                // Нижняя кромка леса (плотнее)
-                for (let x = -15; x < W + 15; x += 20 + Math.floor(Math.random() * 8)) {
+                // Нижняя кромка леса — теперь более случайно
+                let x = -15;
+                while (x < W + 15) {
                     trees.push({
-                        x: x + Math.random() * 8,
+                        x: x + Math.random() * 10,
                         y: H - 2,
                         size: 18 + Math.random() * 16,
                         rough: Math.random() * 100,
                         variant: Math.floor(Math.random() * 3)
                     });
+                    x += 15 + Math.random() * 25; // случайный интервал
                 }
 
                 // Боковые кромки
@@ -369,7 +366,7 @@
                     });
                 }
 
-                // Случайные деревья по всей поляне (вразнобой)
+                // Случайные деревья по всей поляне
                 for (let i = 0; i < 12; i++) {
                     const x = 20 + Math.random() * (W - 40);
                     const y = GROUND_Y + 30 + Math.random() * (H - GROUND_Y - 50);
@@ -386,11 +383,7 @@
                 for (let i = 0; i < 15; i++) {
                     const x = 10 + Math.random() * (W - 20);
                     const y = GROUND_Y + 15 + Math.random() * (H - GROUND_Y - 30);
-                    bushes.push({
-                        x,
-                        y,
-                        size: 6 + Math.random() * 8
-                    });
+                    bushes.push({ x, y, size: 6 + Math.random() * 8 });
                 }
 
                 // Камни
@@ -659,35 +652,69 @@
             }
 
             function drawCastle() {
-                // Зубчики рисуем ПЕРВЫМИ (позади стены)
+                // Деревянный пол (площадка, на которой стоит лучник)
+                const floorY = WALL_TOP_Y - 4; // 54
+                ctx.fillStyle = '#5a3a2a';
+                ctx.fillRect(0, floorY, W, 4);
+                // Доски
+                ctx.fillStyle = '#4a2a1a';
+                for (let x = 0; x < W; x += 8) {
+                    ctx.fillRect(x, floorY, 1, 4);
+                }
+                // Блики
+                ctx.fillStyle = '#7a4a2a';
+                ctx.fillRect(0, floorY, W, 1);
+
+                // Зубчики (соединены с полом)
+                const battlementStartY = floorY - 10; // 44
                 ctx.fillStyle = '#555565';
                 for (let x = 6; x < W; x += 14) {
-                    ctx.fillRect(x, 30, 8, 20);  // увеличенная высота для видимости
+                    // Основной блок
+                    ctx.fillRect(x, battlementStartY, 8, 10);
+                    // Верхний мерлон
                     ctx.fillStyle = '#666676';
-                    ctx.fillRect(x + 1, 30, 6, 20);
+                    ctx.fillRect(x + 1, battlementStartY, 6, 10);
+                    // Тень
+                    ctx.fillStyle = '#444455';
+                    ctx.fillRect(x, battlementStartY + 8, 8, 2);
+                    // Разделительная линия
                     ctx.fillStyle = '#555565';
+                    ctx.fillRect(x, battlementStartY + 5, 8, 1);
                 }
 
-                // Верхняя площадка (пол)
-                ctx.fillStyle = '#4a4a55';
-                ctx.fillRect(0, WALL_TOP_Y - 4, W, 4);
-
-                // Стена (перед зубчиками)
+                // Стена
                 ctx.fillStyle = '#4a4a55';
                 ctx.fillRect(0, WALL_TOP_Y, W, WALL_BASE_Y - WALL_TOP_Y);
 
-                // Каменная кладка
+                // Каменная кладка (более детализированная)
                 const rowH = 7;
                 for (let y = WALL_TOP_Y; y < WALL_BASE_Y; y += rowH) {
                     const offset = (Math.floor((y - WALL_TOP_Y) / rowH) % 2) * 8;
                     for (let x = -8 + offset; x < W; x += 16) {
                         const r = (x * 7 + y * 13) % 30;
-                        ctx.fillStyle = r < 10 ? '#3a3a45' : (r < 20 ? '#505060' : '#454555');
+                        let color;
+                        if (r < 5) color = '#3a3a45';
+                        else if (r < 15) color = '#505060';
+                        else if (r < 25) color = '#454555';
+                        else color = '#585868';
+                        ctx.fillStyle = color;
                         ctx.fillRect(x, y, 16, rowH);
                         ctx.fillStyle = '#2a2a35';
                         ctx.fillRect(x, y + rowH - 1, 16, 1);
                         ctx.fillRect(x + 15, y, 1, rowH);
+                        // Небольшие выступы
+                        if ((x + y) % 20 < 4) {
+                            ctx.fillStyle = '#606070';
+                            ctx.fillRect(x + 3, y + 2, 4, 2);
+                        }
                     }
+                }
+
+                // Декоративные элементы: стрельчатые окна-бойницы
+                ctx.fillStyle = '#2a2a35';
+                for (let wx = 20; wx < W; wx += 40) {
+                    ctx.fillRect(wx, WALL_TOP_Y + 8, 3, 10);
+                    ctx.fillRect(wx + 1, WALL_TOP_Y + 6, 1, 2);
                 }
 
                 // Мох и патина
@@ -745,11 +772,9 @@
                     ctx.fillStyle = g.c;
                     ctx.fillRect(Math.floor(g.x), Math.floor(g.y), 1, 2);
                 }
-                // Кусты
                 for (const b of bushes) {
                     drawBush(b);
                 }
-                // Камни
                 for (const r of rocks) {
                     drawRock(r);
                 }
@@ -812,11 +837,31 @@
                 }
             }
 
+            // Отрисовка орка с контуром для улучшения видимости
             function drawEnemy(e) {
                 const sprite = ORC_SPRITE;
                 const px = Math.floor(e.x - sprite[0].length / 2);
                 const py = Math.floor(e.y - sprite.length / 2);
 
+                // Рисуем контур (чёрный)
+                ctx.fillStyle = '#000000';
+                for (let row = 0; row < sprite.length; row++) {
+                    for (let col = 0; col < sprite[row].length; col++) {
+                        if (sprite[row][col] !== '.') {
+                            // Проверяем соседей
+                            const isEdge = 
+                                row === 0 || row === sprite.length - 1 ||
+                                col === 0 || col === sprite[row].length - 1 ||
+                                sprite[row-1][col] === '.' || sprite[row+1][col] === '.' ||
+                                sprite[row][col-1] === '.' || sprite[row][col+1] === '.';
+                            if (isEdge) {
+                                ctx.fillRect(px + col, py + row, 1, 1);
+                            }
+                        }
+                    }
+                }
+
+                // Рисуем сам спрайт
                 for (let row = 0; row < sprite.length; row++) {
                     for (let col = 0; col < sprite[row].length; col++) {
                         const ch = sprite[row][col];
@@ -827,6 +872,7 @@
                     }
                 }
 
+                // Полоска здоровья
                 if (e.hp < e.maxHp) {
                     const w = sprite[0].length;
                     ctx.fillStyle = '#300';
@@ -890,13 +936,16 @@
                 ctx.fillStyle = '#ffffff';
                 ctx.font = '8px monospace';
                 ctx.textAlign = 'left';
-                ctx.fillText(`Волна: ${wave} | Враги: ${enemies.length} | Счёт: ${score}`, 4, 10);
-                ctx.textAlign = 'right';
-                ctx.fillText(`Замок: ${castleHP}`, W - 4, 10);
-                ctx.textAlign = 'left';
 
-                // Кнопка паузы рядом со счётом (слева)
-                const px = 130;
+                const scoreText = `Волна: ${wave} | Враги: ${enemies.length} | Счёт: ${score}`;
+                ctx.fillText(scoreText, 4, 10);
+
+                // Вычисляем ширину текста, чтобы разместить кнопку паузы рядом
+                const textWidth = ctx.measureText(scoreText).width;
+                pauseButtonX = 4 + textWidth + 8; // отступ 8 пикселей
+
+                // Кнопка паузы
+                const px = pauseButtonX;
                 const py = 2;
                 const pw = 20;
                 const ph = 12;
@@ -910,6 +959,11 @@
                     ctx.fillRect(px + 4, py + 2, 2, 8);
                     ctx.fillRect(px + 10, py + 2, 2, 8);
                 }
+
+                // Замок HP справа
+                ctx.textAlign = 'right';
+                ctx.fillText(`Замок: ${castleHP}`, W - 4, 10);
+                ctx.textAlign = 'left';
             }
 
             function drawMenu() {
