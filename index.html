@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dark Archer Defense — Прокачка</title>
+    <title>Dark Archer Defense — Новые орки и обход препятствий</title>
     <style>
         * {
             margin: 0;
@@ -84,7 +84,7 @@
             // ---------- Функции запуска/сброса ----------
             function resetGame() {
                 player.x = W / 2;
-                player.y = 48; // игрок стоит за зубчиками
+                player.y = 48;
                 player.cooldown = 0;
                 player.maxCooldown = upgrade.baseCooldown + upgrade.speedLevel * 0.03;
                 arrows = [];
@@ -148,7 +148,7 @@
                         upgrade.coins -= upgrade.hpCost;
                         upgrade.hpLevel++;
                         const newMaxHP = upgrade.baseMaxHP + upgrade.hpLevel * 5;
-                        castleHP = newMaxHP; // полное восстановление
+                        castleHP = newMaxHP;
                         updateUpgradeCosts();
                     }
                 }
@@ -169,7 +169,6 @@
                 if ((gameState === STATE.PLAYING || gameState === STATE.PAUSED) && key === 'p') {
                     gameState = (gameState === STATE.PLAYING) ? STATE.PAUSED : STATE.PLAYING;
                 }
-                // Горячие клавиши для прокачки (1 - урон, 2 - скорость, 3 - хп)
                 if (gameState === STATE.PLAYING) {
                     if (key === '1') purchaseUpgrade('damage');
                     if (key === '2') purchaseUpgrade('speed');
@@ -209,7 +208,6 @@
                         isOverUI = true;
                     }
 
-                    // Кнопки улучшений
                     const upgradePanel = getUpgradePanelPosition();
                     for (const btn of upgradePanel.buttons) {
                         if (mouse.x > btn.x && mouse.x < btn.x + btn.w && mouse.y > btn.y && mouse.y < btn.y + btn.h) {
@@ -269,7 +267,6 @@
                         return;
                     }
 
-                    // Улучшения
                     const upgradePanel = getUpgradePanelPosition();
                     for (const btn of upgradePanel.buttons) {
                         if (mx > btn.x && mx < btn.x + btn.w && my > btn.y && my < btn.y + btn.h) {
@@ -307,6 +304,7 @@
             let trees = [];
             let bushes = [];
             let rocks = [];
+            let obstacles = []; // общий массив препятствий
             let stars = [];
             let score = 0;
             let kills = 0;
@@ -351,11 +349,8 @@
                 '.......CCCCC.......'
             ];
 
-            const ORC_COLORS = {
-                G: '#2e4a1e', g: '#3a5c2a', d: '#1f3314', R: '#ff3333',
-                r: '#8b1a1a', t: '#4a3620', w: '#9e9e9e', b: '#5a4a3a'
-            };
-            const ORC_SPRITE = [
+            // Обычный орк (зелёный) 16x18
+            const ORC_NORMAL = [
                 '....GGGGGGGG....',
                 '...GGGGGGGGGG...',
                 '..GGGGGGGGGGGG..',
@@ -373,6 +368,86 @@
                 '...GGG....GGG...',
                 '..b.GGG..GGG.b..'
             ];
+
+            // Быстрый орк (синий) 16x18
+            const ORC_FAST = [
+                '....BBBBBBBB....',
+                '...BBBBBBBBBB...',
+                '..BBBBBBBBBBBB..',
+                '..BBBBBBBBBBBB..',
+                '..BBRRBBBBRRBB..',
+                '..BBRRBBBBRRBB..',
+                '..BBBBBBBBBBBB..',
+                '..BBttttttttBB..',
+                '...BttttttttB...',
+                '...BBttBBttBB...',
+                '..BBBBBBBBBBBB..',
+                '..BBBBBBBBBBBB..',
+                '..BddddddddddB..',
+                '..BBBBBBBBBBBB..',
+                '...BBB....BBB...',
+                '..b.BBB..BBB.b..'
+            ];
+
+            // Танк (красный) 18x20
+            const ORC_TANK = [
+                '.....RRRRRRRR.....',
+                '....RRRRRRRRRR....',
+                '...RRRRRRRRRRRR...',
+                '...RRRRRRRRRRRR...',
+                '...RRRRRRRRRRRR...',
+                '...RREERRRRREERR..',
+                '...RREERRRRREERR..',
+                '...RRRRRRRRRRRR...',
+                '...RRttttttttRR...',
+                '....RttttttttR....',
+                '....RRttRRttRR....',
+                '...RRRRRRRRRRRR...',
+                '...RRRRRRRRRRRR...',
+                '...RddddddddddR...',
+                '...RRRRRRRRRRRR...',
+                '....RRR....RRR....',
+                '...b.RRR..RRR.b...',
+                '.....RRR..RRR.....'
+            ];
+
+            // Босс (большой) 24x28
+            const ORC_BOSS = [
+                '........GGGGGGGGGGGG........',
+                '.......GGGGGGGGGGGGGG.......',
+                '......GGGGGGGGGGGGGGGG......',
+                '......GGGGGGGGGGGGGGGG......',
+                '.....GGGGGGGGGGGGGGGGGG.....',
+                '.....GGRRRRGGGGGGRRRRGG.....',
+                '.....GGRRRRGGGGGGRRRRGG.....',
+                '.....GGGGGGGGGGGGGGGGGG.....',
+                '.....GGGGGGGGGGGGGGGGGG.....',
+                '.....GGttttttttttttttGG.....',
+                '......GttttttttttttttG......',
+                '......GtttGGttttGGtttG......',
+                '......GGGGGGGGGGGGGGGG......',
+                '.....GGGGGGGGGGGGGGGGGG.....',
+                '.....GGGGGGGGGGGGGGGGGG.....',
+                '.....GGGGGGGGGGGGGGGGGG.....',
+                '.....GGddddddddddddddGG.....',
+                '.....GGGGGGGGGGGGGGGGGG.....',
+                '......GGGG....GGGGGGGG......',
+                '......GGGG....GGGGGGGG......',
+                '.....bGGGG....GGGGGGGG.b....',
+                '......GGGG....GGGGGGGG......',
+                '......GGG......GGGGGG.......',
+                '......GGG......GGGGGG.......',
+                '......GG........GGGG........',
+                '......GG........GGGG........',
+                '.....bGG........GGGG.b......',
+                '................GGGG........'
+            ];
+
+            const ORC_COLORS = {
+                G: '#2e4a1e', g: '#3a5c2a', d: '#1f3314', R: '#ff3333',
+                r: '#8b1a1a', t: '#4a3620', w: '#9e9e9e', b: '#5a4a3a',
+                B: '#2a4a7a', E: '#ffaa00'
+            };
 
             // ---------- Генерация декораций ----------
             function generateRain() {
@@ -412,63 +487,83 @@
                 trees = [];
                 bushes = [];
                 rocks = [];
+                obstacles = [];
 
+                // Нижняя кромка
                 let x = -15;
                 while (x < W + 15) {
-                    trees.push({
+                    const tree = {
                         x: x + Math.random() * 10,
                         y: H - 2 + Math.random() * 6 - 3,
                         size: 18 + Math.random() * 16,
                         rough: Math.random() * 100,
-                        variant: Math.floor(Math.random() * 3)
-                    });
+                        variant: Math.floor(Math.random() * 3),
+                        radius: 10
+                    };
+                    trees.push(tree);
+                    obstacles.push(tree);
                     x += 15 + Math.random() * 25;
                 }
 
+                // Боковые кромки
                 for (let y = GROUND_Y + 10; y < H; y += 22 + Math.floor(Math.random() * 10)) {
-                    trees.push({
+                    const treeL = {
                         x: -4 + Math.random() * 4,
                         y: y + Math.random() * 8,
                         size: 12 + Math.random() * 12,
                         rough: Math.random() * 100,
-                        variant: Math.floor(Math.random() * 3)
-                    });
-                    trees.push({
+                        variant: Math.floor(Math.random() * 3),
+                        radius: 8
+                    };
+                    const treeR = {
                         x: W + 4 - Math.random() * 4,
                         y: y + Math.random() * 8,
                         size: 12 + Math.random() * 12,
                         rough: Math.random() * 100,
-                        variant: Math.floor(Math.random() * 3)
-                    });
+                        variant: Math.floor(Math.random() * 3),
+                        radius: 8
+                    };
+                    trees.push(treeL, treeR);
+                    obstacles.push(treeL, treeR);
                 }
 
+                // Случайные деревья по поляне
                 for (let i = 0; i < 12; i++) {
-                    const x = 20 + Math.random() * (W - 40);
-                    const y = GROUND_Y + 30 + Math.random() * (H - GROUND_Y - 50);
-                    trees.push({
-                        x,
-                        y,
+                    const tree = {
+                        x: 20 + Math.random() * (W - 40),
+                        y: GROUND_Y + 30 + Math.random() * (H - GROUND_Y - 50),
                         size: 16 + Math.random() * 12,
                         rough: Math.random() * 100,
-                        variant: Math.floor(Math.random() * 3)
-                    });
+                        variant: Math.floor(Math.random() * 3),
+                        radius: 8
+                    };
+                    trees.push(tree);
+                    obstacles.push(tree);
                 }
 
+                // Кусты
                 for (let i = 0; i < 15; i++) {
-                    const x = 10 + Math.random() * (W - 20);
-                    const y = GROUND_Y + 15 + Math.random() * (H - GROUND_Y - 30);
-                    bushes.push({ x, y, size: 6 + Math.random() * 8 });
+                    const bush = {
+                        x: 10 + Math.random() * (W - 20),
+                        y: GROUND_Y + 15 + Math.random() * (H - GROUND_Y - 30),
+                        size: 6 + Math.random() * 8,
+                        radius: 4
+                    };
+                    bushes.push(bush);
+                    obstacles.push(bush);
                 }
 
+                // Камни
                 for (let i = 0; i < 10; i++) {
-                    const x = 15 + Math.random() * (W - 30);
-                    const y = GROUND_Y + 15 + Math.random() * (H - GROUND_Y - 25);
-                    rocks.push({
-                        x,
-                        y,
+                    const rock = {
+                        x: 15 + Math.random() * (W - 30),
+                        y: GROUND_Y + 15 + Math.random() * (H - GROUND_Y - 25),
                         size: 4 + Math.random() * 6,
-                        shape: Math.floor(Math.random() * 3)
-                    });
+                        shape: Math.floor(Math.random() * 3),
+                        radius: 4
+                    };
+                    rocks.push(rock);
+                    obstacles.push(rock);
                 }
             }
 
@@ -476,25 +571,70 @@
             function spawnEnemy() {
                 const x = 20 + Math.random() * (W - 40);
                 const y = H + 12;
+                let type = 'normal';
+                let hp = 2 + Math.floor(wave * 1.2);
+                let speed = 14 + Math.random() * 6 + wave * 0.8;
+                let radius = 7;
+                let color = ORC_COLORS.G;
+
+                // Определяем тип врага
+                if (wave >= 5 && Math.random() < 0.25) {
+                    type = 'fast';
+                    hp = 2 + Math.floor(wave * 0.8);
+                    speed = 22 + Math.random() * 4 + wave * 0.5;
+                    radius = 6;
+                    color = ORC_COLORS.B;
+                } else if (wave >= 4 && Math.random() < 0.2) {
+                    type = 'tank';
+                    hp = 5 + Math.floor(wave * 2);
+                    speed = 10 + Math.random() * 4 + wave * 0.5;
+                    radius = 8;
+                    color = ORC_COLORS.R;
+                }
+
                 enemies.push({
                     x, y,
                     targetX: W / 2 + Math.random() * 20 - 10,
                     targetY: WALL_BASE_Y - 2,
-                    hp: 2 + Math.floor(wave * 1.2),
-                    maxHp: 2 + Math.floor(wave * 1.2),
-                    speed: 14 + Math.random() * 6 + wave * 0.8,
-                    radius: 7,
+                    hp, maxHp: hp, speed, radius,
                     atWall: false,
-                    attackTimer: 0
+                    attackTimer: 0,
+                    type,
+                    color
+                });
+            }
+
+            function spawnBoss() {
+                const x = W / 2;
+                const y = H + 20;
+                const hp = 50 + wave * 10;
+                enemies.push({
+                    x, y,
+                    targetX: W / 2,
+                    targetY: WALL_BASE_Y - 5,
+                    hp, maxHp: hp, speed: 8,
+                    radius: 14,
+                    atWall: false,
+                    attackTimer: 0,
+                    type: 'boss',
+                    color: '#4a3a2a'
                 });
             }
 
             function startWave() {
                 wave++;
-                enemiesToSpawn = 5 + wave * 3;
-                spawnInterval = Math.max(0.4, 1.8 - wave * 0.15);
-                spawnTimer = 0;
-                waveState = 'spawning';
+                if (wave % 10 === 0) {
+                    // Волна босса
+                    enemiesToSpawn = 3;
+                    spawnInterval = 3;
+                    spawnTimer = 0;
+                    waveState = 'spawning';
+                } else {
+                    enemiesToSpawn = 5 + wave * 3;
+                    spawnInterval = Math.max(0.4, 1.8 - wave * 0.15);
+                    spawnTimer = 0;
+                    waveState = 'spawning';
+                }
             }
 
             // ---------- Стрельба ----------
@@ -577,8 +717,13 @@
                 } else if (waveState === 'spawning') {
                     spawnTimer -= dt;
                     if (spawnTimer <= 0 && enemiesToSpawn > 0) {
-                        spawnEnemy();
-                        enemiesToSpawn--;
+                        if (wave % 10 === 0) {
+                            spawnBoss();
+                            enemiesToSpawn--;
+                        } else {
+                            spawnEnemy();
+                            enemiesToSpawn--;
+                        }
                         spawnTimer = spawnInterval;
                     }
                     if (enemiesToSpawn <= 0) waveState = 'active';
@@ -589,11 +734,32 @@
                     }
                 }
 
+                // Обновление врагов с избеганием препятствий
                 for (const e of enemies) {
                     if (!e.atWall) {
-                        const dx = e.targetX - e.x;
-                        const dy = e.targetY - e.y;
-                        const dist = Math.hypot(dx, dy);
+                        let dx = e.targetX - e.x;
+                        let dy = e.targetY - e.y;
+                        let dist = Math.hypot(dx, dy);
+
+                        // Избегание препятствий
+                        for (const obs of obstacles) {
+                            const ox = e.x - obs.x;
+                            const oy = e.y - obs.y;
+                            const odist = Math.hypot(ox, oy);
+                            const minDist = e.radius + obs.radius;
+                            if (odist < minDist && odist > 0) {
+                                // Отталкиваемся от препятствия
+                                const pushX = ox / odist;
+                                const pushY = oy / odist;
+                                e.x += pushX * (minDist - odist) * 2;
+                                e.y += pushY * (minDist - odist) * 2;
+                                // Пересчитываем направление
+                                dx = e.targetX - e.x;
+                                dy = e.targetY - e.y;
+                                dist = Math.hypot(dx, dy);
+                            }
+                        }
+
                         if (dist > 2) {
                             e.x += dx / dist * e.speed * dt;
                             e.y += dy / dist * e.speed * dt;
@@ -610,6 +776,7 @@
                     }
                 }
 
+                // Стрелы
                 for (const a of arrows) {
                     a.x += a.vx * dt;
                     a.y += a.vy * dt;
@@ -622,7 +789,10 @@
                             if (e.hp <= 0) {
                                 score += 20;
                                 kills++;
-                                upgrade.coins += 10; // награда за убийство
+                                upgrade.coins += 10;
+                                if (e.type === 'boss') upgrade.coins += 50;
+                                else if (e.type === 'tank') upgrade.coins += 20;
+                                else if (e.type === 'fast') upgrade.coins += 15;
                             }
                             break;
                         }
@@ -829,12 +999,8 @@
                     ctx.fillStyle = g.c;
                     ctx.fillRect(Math.floor(g.x), Math.floor(g.y), 1, 2);
                 }
-                for (const b of bushes) {
-                    drawBush(b);
-                }
-                for (const r of rocks) {
-                    drawRock(r);
-                }
+                for (const b of bushes) drawBush(b);
+                for (const r of rocks) drawRock(r);
             }
 
             function drawPlayer() {
@@ -893,10 +1059,17 @@
             }
 
             function drawEnemy(e) {
-                const sprite = ORC_SPRITE;
+                let sprite;
+                if (e.type === 'normal') sprite = ORC_NORMAL;
+                else if (e.type === 'fast') sprite = ORC_FAST;
+                else if (e.type === 'tank') sprite = ORC_TANK;
+                else if (e.type === 'boss') sprite = ORC_BOSS;
+                else sprite = ORC_NORMAL;
+
                 const px = Math.floor(e.x - sprite[0].length / 2);
                 const py = Math.floor(e.y - sprite.length / 2);
 
+                // Контур
                 ctx.fillStyle = '#000000';
                 for (let row = 0; row < sprite.length; row++) {
                     for (let col = 0; col < sprite[row].length; col++) {
@@ -913,16 +1086,18 @@
                     }
                 }
 
+                // Основной спрайт
                 for (let row = 0; row < sprite.length; row++) {
                     for (let col = 0; col < sprite[row].length; col++) {
                         const ch = sprite[row][col];
                         if (ch !== '.') {
-                            ctx.fillStyle = ORC_COLORS[ch] || '#fff';
+                            ctx.fillStyle = ORC_COLORS[ch] || e.color || '#fff';
                             ctx.fillRect(px + col, py + row, 1, 1);
                         }
                     }
                 }
 
+                // Полоска здоровья
                 if (e.hp < e.maxHp) {
                     const w = sprite[0].length;
                     ctx.fillStyle = '#300';
@@ -981,18 +1156,18 @@
             }
 
             function getUpgradePanelPosition() {
-                const panelWidth = 260;
-                const startX = W - panelWidth - 10;
+                // Вертикальная панель слева
+                const startX = 4;
                 const startY = 20;
-                const buttonW = 80;
+                const buttonW = 70;
                 const buttonH = 16;
                 return {
                     x: startX,
                     y: startY,
                     buttons: [
                         { x: startX, y: startY, w: buttonW, h: buttonH, type: 'damage' },
-                        { x: startX + buttonW + 5, y: startY, w: buttonW, h: buttonH, type: 'speed' },
-                        { x: startX + (buttonW + 5) * 2, y: startY, w: buttonW, h: buttonH, type: 'hp' }
+                        { x: startX, y: startY + buttonH + 4, w: buttonW, h: buttonH, type: 'speed' },
+                        { x: startX, y: startY + (buttonH + 4) * 2, w: buttonW, h: buttonH, type: 'hp' }
                     ]
                 };
             }
@@ -1002,19 +1177,16 @@
 
                 const panel = getUpgradePanelPosition();
                 ctx.fillStyle = 'rgba(20, 10, 15, 0.85)';
-                ctx.fillRect(panel.x - 4, panel.y - 4, 270, 28);
+                ctx.fillRect(panel.x - 2, panel.y - 16, 76, 54);
 
                 ctx.fillStyle = '#fff';
-                ctx.font = '6px monospace';
+                ctx.font = '7px monospace';
                 ctx.textAlign = 'left';
-                ctx.fillText(`Монеты: ${upgrade.coins}`, panel.x, panel.y + 6);
+                ctx.fillText(`Монеты: ${upgrade.coins}`, panel.x + 2, panel.y - 2);
 
-                ctx.font = '6px monospace';
-                // Кнопка урона
+                ctx.font = '7px monospace';
                 drawUpgradeButton(panel.buttons[0], 'Урон', upgrade.damageLevel, upgrade.damageCost);
-                // Кнопка скорости
                 drawUpgradeButton(panel.buttons[1], 'Скор', upgrade.speedLevel, upgrade.speedCost);
-                // Кнопка HP
                 drawUpgradeButton(panel.buttons[2], 'Замок', upgrade.hpLevel, upgrade.hpCost);
             }
 
@@ -1022,8 +1194,8 @@
                 const canAfford = upgrade.coins >= cost;
                 ctx.fillStyle = canAfford ? '#2a2a2a' : '#1a1a1a';
                 ctx.fillRect(btn.x, btn.y, btn.w, btn.h);
-                ctx.fillStyle = canAfford ? '#ddd' : '#666';
-                ctx.font = '6px monospace';
+                ctx.fillStyle = canAfford ? '#ffffff' : '#888888';
+                ctx.font = '7px monospace';
                 ctx.textAlign = 'center';
                 ctx.fillText(`${label} ${level}`, btn.x + btn.w / 2, btn.y + 6);
                 ctx.fillText(`${cost}м`, btn.x + btn.w / 2, btn.y + 13);
