@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dark Archer Defense — Исправления</title>
+    <title>Dark Archer Defense — Финальная версия</title>
     <style>
         * {
             margin: 0;
@@ -489,10 +489,10 @@
                 rocks = [];
                 obstacles = [];
 
-                // Нижняя кромка: редкие деревья, большие интервалы, чтобы не мешали проходу
+                // Нижняя кромка: редкие деревья
                 let x = 20;
                 while (x < W - 20) {
-                    if (Math.random() < 0.35) { // 35% шанс дерева
+                    if (Math.random() < 0.35) {
                         const tree = {
                             x: x,
                             y: H - 6 + Math.random() * 4 - 2,
@@ -504,10 +504,10 @@
                         trees.push(tree);
                         obstacles.push(tree);
                     }
-                    x += 30 + Math.random() * 40; // интервал 30-70 пикселей
+                    x += 30 + Math.random() * 40;
                 }
 
-                // Боковые кромки: тоже реже
+                // Боковые кромки
                 for (let y = GROUND_Y + 20; y < H - 20; y += 50 + Math.random() * 30) {
                     if (Math.random() < 0.4) {
                         const treeL = {
@@ -535,8 +535,8 @@
                     }
                 }
 
-                // Случайные деревья по поляне (умеренно)
-                for (let i = 0; i < 8; i++) {
+                // Случайные деревья по поляне (меньше, чтобы не мешать)
+                for (let i = 0; i < 6; i++) {
                     const tree = {
                         x: 40 + Math.random() * (W - 80),
                         y: GROUND_Y + 30 + Math.random() * (H - GROUND_Y - 60),
@@ -580,41 +580,38 @@
                 const x = 20 + Math.random() * (W - 40);
                 const y = H + 12;
                 let type = 'normal';
-                let hp = 2 + Math.floor(wave * 1.2);
-                let speed = 14 + Math.random() * 6 + wave * 0.8;
+                // Меньше врагов, но сильнее
+                let hp = 3 + Math.floor(wave * 1.5);
+                let speed = 15 + wave * 1.2 + Math.random() * 4;
                 let radius = 7;
-                let color = ORC_COLORS.G;
 
                 if (wave >= 5 && Math.random() < 0.25) {
                     type = 'fast';
-                    hp = 2 + Math.floor(wave * 0.8);
-                    speed = 22 + Math.random() * 4 + wave * 0.5;
+                    hp = 3 + Math.floor(wave * 1.0);
+                    speed = 25 + wave * 1.0 + Math.random() * 4;
                     radius = 6;
-                    color = ORC_COLORS.B;
                 } else if (wave >= 4 && Math.random() < 0.2) {
                     type = 'tank';
-                    hp = 5 + Math.floor(wave * 2);
-                    speed = 10 + Math.random() * 4 + wave * 0.5;
+                    hp = 6 + Math.floor(wave * 2.5);
+                    speed = 12 + wave * 0.8 + Math.random() * 4;
                     radius = 8;
-                    color = ORC_COLORS.R;
                 }
 
                 enemies.push({
                     x, y,
-                    targetX: W / 2 + Math.random() * 20 - 10,
+                    targetX: W / 2 + Math.random() * 30 - 15,
                     targetY: WALL_BASE_Y - 2,
                     hp, maxHp: hp, speed, radius,
                     atWall: false,
                     attackTimer: 0,
-                    type,
-                    color
+                    type
                 });
             }
 
             function spawnBoss() {
                 const x = W / 2;
                 const y = H + 20;
-                const hp = 50 + wave * 10;
+                const hp = 60 + wave * 10;
                 enemies.push({
                     x, y,
                     targetX: W / 2,
@@ -623,8 +620,7 @@
                     radius: 14,
                     atWall: false,
                     attackTimer: 0,
-                    type: 'boss',
-                    color: '#4a3a2a'
+                    type: 'boss'
                 });
             }
 
@@ -636,8 +632,9 @@
                     spawnTimer = 0;
                     waveState = 'spawning';
                 } else {
-                    enemiesToSpawn = 5 + wave * 3;
-                    spawnInterval = Math.max(0.4, 1.8 - wave * 0.15);
+                    // Меньше врагов
+                    enemiesToSpawn = 3 + Math.floor(wave * 1.5);
+                    spawnInterval = Math.max(0.6, 2.0 - wave * 0.08);
                     spawnTimer = 0;
                     waveState = 'spawning';
                 }
@@ -740,38 +737,49 @@
                     }
                 }
 
-                // Обновление врагов с избеганием препятствий
+                // Обновление врагов с улучшенным избеганием препятствий
                 for (const e of enemies) {
                     if (!e.atWall) {
                         let dx = e.targetX - e.x;
                         let dy = e.targetY - e.y;
                         let dist = Math.hypot(dx, dy);
+                        if (dist < 2) {
+                            e.atWall = true;
+                            e.attackTimer = 0;
+                            continue;
+                        }
 
                         // Избегание препятствий
+                        let collisionDetected = false;
                         for (const obs of obstacles) {
                             const ox = e.x - obs.x;
                             const oy = e.y - obs.y;
                             const odist = Math.hypot(ox, oy);
                             const minDist = e.radius + obs.radius;
                             if (odist < minDist && odist > 0) {
+                                // Отталкиваемся
                                 const pushX = ox / odist;
                                 const pushY = oy / odist;
                                 e.x += pushX * (minDist - odist) * 2;
                                 e.y += pushY * (minDist - odist) * 2;
-                                // Пересчитываем направление
-                                dx = e.targetX - e.x;
-                                dy = e.targetY - e.y;
-                                dist = Math.hypot(dx, dy);
+                                collisionDetected = true;
                             }
                         }
 
-                        if (dist > 2) {
-                            e.x += dx / dist * e.speed * dt;
-                            e.y += dy / dist * e.speed * dt;
-                        } else {
-                            e.atWall = true;
-                            e.attackTimer = 0;
+                        // Если было столкновение, добавляем случайное боковое смещение для обхода
+                        if (collisionDetected) {
+                            const angleOffset = (Math.random() - 0.5) * 1.5;
+                            const cos = Math.cos(angleOffset);
+                            const sin = Math.sin(angleOffset);
+                            const newDx = dx * cos - dy * sin;
+                            const newDy = dx * sin + dy * cos;
+                            dx = newDx;
+                            dy = newDy;
+                            dist = Math.hypot(dx, dy) || 1;
                         }
+
+                        e.x += dx / dist * e.speed * dt;
+                        e.y += dy / dist * e.speed * dt;
                     } else {
                         e.attackTimer -= dt;
                         if (e.attackTimer <= 0) {
@@ -850,8 +858,11 @@
                     layerY -= layerH;
                     layerW -= Math.max(3, Math.floor(t.size / 6));
                 }
+                // Верхушка (сделаем более заметной и необрезанной)
+                ctx.fillStyle = light2;
+                ctx.fillRect(Math.floor(t.x - 1), Math.floor(layerY) - 1, 2, 2);
                 ctx.fillStyle = light;
-                ctx.fillRect(Math.floor(t.x - 1), Math.floor(layerY - 1), 2, 2);
+                ctx.fillRect(Math.floor(t.x), Math.floor(layerY) - 2, 1, 1);
             }
 
             function drawBush(b) {
@@ -1159,18 +1170,19 @@
             }
 
             function getUpgradePanelPosition() {
-                // Вертикальная панель в правом углу
+                // Вертикальная панель в правом нижнем углу
                 const startX = W - 80;
-                const startY = 20;
+                const startY = 60; // переместили ниже
                 const buttonW = 70;
-                const buttonH = 16;
+                const buttonH = 22; // увеличили высоту кнопок
+                const gap = 8; // расстояние между кнопками
                 return {
                     x: startX,
                     y: startY,
                     buttons: [
                         { x: startX, y: startY, w: buttonW, h: buttonH, type: 'damage' },
-                        { x: startX, y: startY + buttonH + 4, w: buttonW, h: buttonH, type: 'speed' },
-                        { x: startX, y: startY + (buttonH + 4) * 2, w: buttonW, h: buttonH, type: 'hp' }
+                        { x: startX, y: startY + buttonH + gap, w: buttonW, h: buttonH, type: 'speed' },
+                        { x: startX, y: startY + (buttonH + gap) * 2, w: buttonW, h: buttonH, type: 'hp' }
                     ]
                 };
             }
@@ -1179,15 +1191,15 @@
                 if (gameState !== STATE.PLAYING && gameState !== STATE.PAUSED) return;
 
                 const panel = getUpgradePanelPosition();
-                ctx.fillStyle = 'rgba(20, 10, 15, 0.85)';
-                ctx.fillRect(panel.x - 2, panel.y - 16, 76, 54);
+                ctx.fillStyle = 'rgba(20, 10, 15, 0.9)';
+                ctx.fillRect(panel.x - 4, panel.y - 20, 78, 70); // увеличенная панель
 
                 ctx.fillStyle = '#fff';
-                ctx.font = '7px monospace';
+                ctx.font = '8px monospace';
                 ctx.textAlign = 'left';
-                ctx.fillText(`Монеты: ${upgrade.coins}`, panel.x + 2, panel.y - 2);
+                ctx.fillText(`Монеты: ${upgrade.coins}`, panel.x + 2, panel.y - 4);
 
-                ctx.font = '7px monospace';
+                ctx.font = '8px monospace';
                 drawUpgradeButton(panel.buttons[0], 'Урон', upgrade.damageLevel, upgrade.damageCost);
                 drawUpgradeButton(panel.buttons[1], 'Скор', upgrade.speedLevel, upgrade.speedCost);
                 drawUpgradeButton(panel.buttons[2], 'Замок', upgrade.hpLevel, upgrade.hpCost);
@@ -1198,10 +1210,10 @@
                 ctx.fillStyle = canAfford ? '#2a2a2a' : '#1a1a1a';
                 ctx.fillRect(btn.x, btn.y, btn.w, btn.h);
                 ctx.fillStyle = canAfford ? '#ffffff' : '#888888';
-                ctx.font = '7px monospace';
+                ctx.font = '8px monospace';
                 ctx.textAlign = 'center';
-                ctx.fillText(`${label} ${level}`, btn.x + btn.w / 2, btn.y + 6);
-                ctx.fillText(`${cost}м`, btn.x + btn.w / 2, btn.y + 13);
+                ctx.fillText(`${label} ${level}`, btn.x + btn.w / 2, btn.y + 8);
+                ctx.fillText(`${cost}м`, btn.x + btn.w / 2, btn.y + 18);
             }
 
             function drawHUD() {
@@ -1254,46 +1266,72 @@
                     ctx.fillRect(0, 0, W, H);
                 }
 
-                ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+                // Улучшенное меню
+                ctx.fillStyle = 'rgba(10, 5, 15, 0.85)';
                 ctx.fillRect(0, 0, W, H);
 
-                ctx.fillStyle = '#d2b48c';
-                ctx.font = '24px monospace';
+                // Рамка
+                ctx.strokeStyle = '#5a3a2a';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(20, 20, W - 40, H - 40);
+
+                // Заголовок с тенью
+                ctx.fillStyle = '#000';
+                ctx.font = '26px monospace';
                 ctx.textAlign = 'center';
+                ctx.fillText('DARK ARCHER', W / 2 + 2, H / 2 - 38);
+                ctx.fillStyle = '#d2b48c';
                 ctx.fillText('DARK ARCHER', W / 2, H / 2 - 40);
+
+                ctx.fillStyle = '#000';
+                ctx.font = '14px monospace';
+                ctx.fillText('DEFENSE', W / 2 + 1, H / 2 - 21);
                 ctx.fillStyle = '#8b0000';
-                ctx.font = '12px monospace';
-                ctx.fillText('DEFENSE', W / 2, H / 2 - 25);
+                ctx.fillText('DEFENSE', W / 2, H / 2 - 22);
 
-                const bx = W / 2 - 50;
+                // Кнопка START
+                const bx = W / 2 - 60;
                 const by = H / 2 + 10;
-                const bw = 100;
-                const bh = 24;
-
+                const bw = 120;
+                const bh = 28;
                 if (mouse.x > bx && mouse.x < bx + bw && mouse.y > by && mouse.y < by + bh) {
-                    ctx.fillStyle = '#4a2a2a';
+                    ctx.fillStyle = '#6a3a2a';
                     ctx.fillRect(bx, by, bw, bh);
-                    ctx.fillStyle = '#ffffff';
-                    ctx.fillText('START', W / 2, by + 16);
+                    ctx.fillStyle = '#fff';
+                    ctx.font = '12px monospace';
+                    ctx.fillText('START', W / 2, by + 18);
                 } else {
-                    ctx.fillStyle = '#2a1a1a';
+                    ctx.fillStyle = '#3a1a1a';
                     ctx.fillRect(bx, by, bw, bh);
                     ctx.fillStyle = '#d2b48c';
-                    ctx.fillText('START', W / 2, by + 16);
+                    ctx.font = '12px monospace';
+                    ctx.fillText('START', W / 2, by + 18);
                 }
+
+                ctx.fillStyle = '#808080';
+                ctx.font = '8px monospace';
+                ctx.fillText('Нажмите W или кликните для начала', W / 2, H - 30);
                 ctx.textAlign = 'left';
             }
 
             function drawPauseOverlay() {
-                ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+                // Улучшенное меню паузы
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
                 ctx.fillRect(0, 0, W, H);
-                ctx.fillStyle = '#ffffff';
-                ctx.font = '16px monospace';
+
+                // Рамка
+                ctx.strokeStyle = '#5a3a2a';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(150, 80, 180, 100);
+
+                ctx.fillStyle = '#fff';
+                ctx.font = '20px monospace';
                 ctx.textAlign = 'center';
-                ctx.fillText('ПАУЗА', W / 2, H / 2 - 10);
+                ctx.fillText('ПАУЗА', W / 2, 120);
+
                 ctx.fillStyle = '#d2b48c';
                 ctx.font = '8px monospace';
-                ctx.fillText('Кликните по значку паузы', W / 2, H / 2 + 10);
+                ctx.fillText('Кликните по значку паузы или нажмите P', W / 2, 150);
                 ctx.textAlign = 'left';
             }
 
