@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dark Archer Defense — Новые орки и обход препятствий</title>
+    <title>Dark Archer Defense — Исправления</title>
     <style>
         * {
             margin: 0;
@@ -304,7 +304,7 @@
             let trees = [];
             let bushes = [];
             let rocks = [];
-            let obstacles = []; // общий массив препятствий
+            let obstacles = [];
             let stars = [];
             let score = 0;
             let kills = 0;
@@ -349,7 +349,7 @@
                 '.......CCCCC.......'
             ];
 
-            // Обычный орк (зелёный) 16x18
+            // Обычный орк (зелёный)
             const ORC_NORMAL = [
                 '....GGGGGGGG....',
                 '...GGGGGGGGGG...',
@@ -369,7 +369,7 @@
                 '..b.GGG..GGG.b..'
             ];
 
-            // Быстрый орк (синий) 16x18
+            // Быстрый орк (синий)
             const ORC_FAST = [
                 '....BBBBBBBB....',
                 '...BBBBBBBBBB...',
@@ -389,7 +389,7 @@
                 '..b.BBB..BBB.b..'
             ];
 
-            // Танк (красный) 18x20
+            // Танк (красный)
             const ORC_TANK = [
                 '.....RRRRRRRR.....',
                 '....RRRRRRRRRR....',
@@ -411,7 +411,7 @@
                 '.....RRR..RRR.....'
             ];
 
-            // Босс (большой) 24x28
+            // Босс
             const ORC_BOSS = [
                 '........GGGGGGGGGGGG........',
                 '.......GGGGGGGGGGGGGG.......',
@@ -489,50 +489,58 @@
                 rocks = [];
                 obstacles = [];
 
-                // Нижняя кромка
-                let x = -15;
-                while (x < W + 15) {
-                    const tree = {
-                        x: x + Math.random() * 10,
-                        y: H - 2 + Math.random() * 6 - 3,
-                        size: 18 + Math.random() * 16,
-                        rough: Math.random() * 100,
-                        variant: Math.floor(Math.random() * 3),
-                        radius: 10
-                    };
-                    trees.push(tree);
-                    obstacles.push(tree);
-                    x += 15 + Math.random() * 25;
+                // Нижняя кромка: редкие деревья, большие интервалы, чтобы не мешали проходу
+                let x = 20;
+                while (x < W - 20) {
+                    if (Math.random() < 0.35) { // 35% шанс дерева
+                        const tree = {
+                            x: x,
+                            y: H - 6 + Math.random() * 4 - 2,
+                            size: 18 + Math.random() * 16,
+                            rough: Math.random() * 100,
+                            variant: Math.floor(Math.random() * 3),
+                            radius: 10
+                        };
+                        trees.push(tree);
+                        obstacles.push(tree);
+                    }
+                    x += 30 + Math.random() * 40; // интервал 30-70 пикселей
                 }
 
-                // Боковые кромки
-                for (let y = GROUND_Y + 10; y < H; y += 22 + Math.floor(Math.random() * 10)) {
-                    const treeL = {
-                        x: -4 + Math.random() * 4,
-                        y: y + Math.random() * 8,
-                        size: 12 + Math.random() * 12,
-                        rough: Math.random() * 100,
-                        variant: Math.floor(Math.random() * 3),
-                        radius: 8
-                    };
-                    const treeR = {
-                        x: W + 4 - Math.random() * 4,
-                        y: y + Math.random() * 8,
-                        size: 12 + Math.random() * 12,
-                        rough: Math.random() * 100,
-                        variant: Math.floor(Math.random() * 3),
-                        radius: 8
-                    };
-                    trees.push(treeL, treeR);
-                    obstacles.push(treeL, treeR);
+                // Боковые кромки: тоже реже
+                for (let y = GROUND_Y + 20; y < H - 20; y += 50 + Math.random() * 30) {
+                    if (Math.random() < 0.4) {
+                        const treeL = {
+                            x: 10 + Math.random() * 5,
+                            y: y,
+                            size: 12 + Math.random() * 12,
+                            rough: Math.random() * 100,
+                            variant: Math.floor(Math.random() * 3),
+                            radius: 8
+                        };
+                        trees.push(treeL);
+                        obstacles.push(treeL);
+                    }
+                    if (Math.random() < 0.4) {
+                        const treeR = {
+                            x: W - 10 - Math.random() * 5,
+                            y: y,
+                            size: 12 + Math.random() * 12,
+                            rough: Math.random() * 100,
+                            variant: Math.floor(Math.random() * 3),
+                            radius: 8
+                        };
+                        trees.push(treeR);
+                        obstacles.push(treeR);
+                    }
                 }
 
-                // Случайные деревья по поляне
-                for (let i = 0; i < 12; i++) {
+                // Случайные деревья по поляне (умеренно)
+                for (let i = 0; i < 8; i++) {
                     const tree = {
-                        x: 20 + Math.random() * (W - 40),
-                        y: GROUND_Y + 30 + Math.random() * (H - GROUND_Y - 50),
-                        size: 16 + Math.random() * 12,
+                        x: 40 + Math.random() * (W - 80),
+                        y: GROUND_Y + 30 + Math.random() * (H - GROUND_Y - 60),
+                        size: 14 + Math.random() * 12,
                         rough: Math.random() * 100,
                         variant: Math.floor(Math.random() * 3),
                         radius: 8
@@ -542,10 +550,10 @@
                 }
 
                 // Кусты
-                for (let i = 0; i < 15; i++) {
+                for (let i = 0; i < 12; i++) {
                     const bush = {
-                        x: 10 + Math.random() * (W - 20),
-                        y: GROUND_Y + 15 + Math.random() * (H - GROUND_Y - 30),
+                        x: 20 + Math.random() * (W - 40),
+                        y: GROUND_Y + 20 + Math.random() * (H - GROUND_Y - 40),
                         size: 6 + Math.random() * 8,
                         radius: 4
                     };
@@ -554,10 +562,10 @@
                 }
 
                 // Камни
-                for (let i = 0; i < 10; i++) {
+                for (let i = 0; i < 8; i++) {
                     const rock = {
-                        x: 15 + Math.random() * (W - 30),
-                        y: GROUND_Y + 15 + Math.random() * (H - GROUND_Y - 25),
+                        x: 20 + Math.random() * (W - 40),
+                        y: GROUND_Y + 20 + Math.random() * (H - GROUND_Y - 40),
                         size: 4 + Math.random() * 6,
                         shape: Math.floor(Math.random() * 3),
                         radius: 4
@@ -577,7 +585,6 @@
                 let radius = 7;
                 let color = ORC_COLORS.G;
 
-                // Определяем тип врага
                 if (wave >= 5 && Math.random() < 0.25) {
                     type = 'fast';
                     hp = 2 + Math.floor(wave * 0.8);
@@ -624,7 +631,6 @@
             function startWave() {
                 wave++;
                 if (wave % 10 === 0) {
-                    // Волна босса
                     enemiesToSpawn = 3;
                     spawnInterval = 3;
                     spawnTimer = 0;
@@ -748,7 +754,6 @@
                             const odist = Math.hypot(ox, oy);
                             const minDist = e.radius + obs.radius;
                             if (odist < minDist && odist > 0) {
-                                // Отталкиваемся от препятствия
                                 const pushX = ox / odist;
                                 const pushY = oy / odist;
                                 e.x += pushX * (minDist - odist) * 2;
@@ -1086,7 +1091,6 @@
                     }
                 }
 
-                // Основной спрайт
                 for (let row = 0; row < sprite.length; row++) {
                     for (let col = 0; col < sprite[row].length; col++) {
                         const ch = sprite[row][col];
@@ -1097,7 +1101,6 @@
                     }
                 }
 
-                // Полоска здоровья
                 if (e.hp < e.maxHp) {
                     const w = sprite[0].length;
                     ctx.fillStyle = '#300';
@@ -1156,8 +1159,8 @@
             }
 
             function getUpgradePanelPosition() {
-                // Вертикальная панель слева
-                const startX = 4;
+                // Вертикальная панель в правом углу
+                const startX = W - 80;
                 const startY = 20;
                 const buttonW = 70;
                 const buttonH = 16;
