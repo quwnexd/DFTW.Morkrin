@@ -286,16 +286,16 @@ for (let i = 0; i < 16; i++) {
   rocks.push({ x, y, w: 6 + rnd() * 8, h: 4 + rnd() * 5 });
 }
 
-// деревья: нижняя линия (откуда идут орки) + боковые колонны до стены
+// деревья: нижняя линия (откуда идут орки, крупные — для укрытия) + боковые колонны до стены
 const trees = [];
-for (let x = -6; x < W + 12; x += 20 + rnd() * 6) {
-  trees.push({ x, y: H - 4 + rnd() * 8, scale: 0.85 + rnd() * 0.5, row: 'bottom' });
+for (let x = -10; x < W + 16; x += 17 + rnd() * 5) {
+  trees.push({ x, y: H - 2 + rnd() * 10, scale: 1.5 + rnd() * 0.7, row: 'bottom' });
 }
 for (let side = 0; side < 2; side++) {
-  const baseX = side === 0 ? 14 : W - 14;
-  for (let y = WALL_Y + 24; y < H - 10; y += 34 + rnd() * 14) {
-    const jitter = (rnd() - 0.5) * 14;
-    trees.push({ x: baseX + jitter, y, scale: 0.7 + rnd() * 0.5, row: 'side' });
+  const baseX = side === 0 ? 16 : W - 16;
+  for (let y = WALL_Y + 50; y < H - 10; y += 42 + rnd() * 16) {
+    const jitter = (rnd() - 0.5) * 10;
+    trees.push({ x: baseX + jitter, y, scale: 1.15 + rnd() * 0.5, row: 'side' });
   }
 }
 
@@ -304,28 +304,34 @@ function drawTree(t) {
   ctx.save();
   ctx.translate(t.x, t.y);
   ctx.scale(s, s);
-  ctx.fillStyle = '#1c130c';
-  ctx.fillRect(-3, -6, 6, 14);
-  ctx.fillStyle = '#131f16';
-  for (let i = 0; i < 3; i++) {
-    const w = 22 - i * 5;
-    const y = -10 - i * 12;
+  // ствол
+  ctx.fillStyle = '#150e08';
+  ctx.fillRect(-5, -10, 10, 24);
+  ctx.fillStyle = 'rgba(60,45,30,0.4)';
+  ctx.fillRect(-5, -10, 3, 24);
+  // тёмные хвойные ярусы — крупнее и гуще
+  for (let i = 0; i < 4; i++) {
+    const w = 40 - i * 7;
+    const y = -14 - i * 17;
+    ctx.fillStyle = i % 2 === 0 ? '#0f1a10' : '#152014';
     ctx.beginPath();
-    ctx.moveTo(0, y - 16);
+    ctx.moveTo(0, y - 26);
     ctx.lineTo(-w / 2, y);
     ctx.lineTo(w / 2, y);
     ctx.closePath();
     ctx.fill();
   }
-  ctx.fillStyle = 'rgba(40,60,45,0.35)';
+  // лёгкая подсветка кроны сбоку (лунный свет)
+  ctx.fillStyle = 'rgba(60,80,60,0.25)';
   ctx.beginPath();
-  ctx.moveTo(2, -40);
-  ctx.lineTo(-4, -14);
-  ctx.lineTo(8, -14);
+  ctx.moveTo(4, -92);
+  ctx.lineTo(-6, -20);
+  ctx.lineTo(14, -20);
   ctx.closePath();
   ctx.fill();
   ctx.restore();
 }
+
 
 // ============================================================
 // ДОЖДЬ И МОЛНИЯ
@@ -387,12 +393,8 @@ class Archer {
     gameState.projectiles.push(new Projectile(this.x, this.y, targetX, targetY));
     SoundEngine.playShoot();
   }
-  draw() {
-    ctx.save();
-    if (this.cooldown > 0) ctx.globalAlpha = 0.75;
-    drawSprite(archerSprite, this.x, this.y);
-    ctx.restore();
-  }
+  // отрисовка лучника происходит внутри drawWall() — так он корректно
+  // оказывается позади зубцов стены
 }
 
 class Orc {
@@ -481,6 +483,7 @@ const archer = new Archer();
 // ФОН: небо, луна, стена, земля, декор, дождь
 // ============================================================
 let mistOffset = 0;
+let sceneTime = 0;
 const torchFlicker = { a: 0, b: 0 };
 
 function drawSky() {
@@ -543,11 +546,17 @@ function drawGround(dt) {
   ctx.closePath();
   ctx.fill();
 
+  // боковые деревья — чистый фон, орки в их полосу не заходят (см. SIDE_MARGIN)
   trees.filter(t => t.row === 'side').forEach(drawTree);
-  trees.filter(t => t.row === 'bottom').forEach(drawTree);
 }
 
-function drawWall() {
+const CRENEL_TOP = WALL_Y - 40;
+const CRENEL_H = 24;
+const CRENEL_W = 24;
+const TOOTH_W = CRENEL_W * 0.62;
+
+function drawWall(showArcher) {
+  // тело стены / боевой ход
   const wallGrad = ctx.createLinearGradient(0, WALL_Y - 20, 0, WALL_Y + 40);
   wallGrad.addColorStop(0, '#3a3a40');
   wallGrad.addColorStop(1, '#1c1c22');
@@ -564,34 +573,85 @@ function drawWall() {
     }
   }
 
-  ctx.fillStyle = '#141418';
-  const crenelW = 24;
-  for (let x = -12; x < W; x += crenelW) {
-    ctx.fillRect(x, WALL_Y - 34, crenelW * 0.6, 18);
+  // лучник стоит НА боевом ходу, позади зубцов — рисуем до зубцов,
+  // чтобы затем они частично перекрыли его нижнюю часть
+  if (showArcher) {
+    ctx.save();
+    if (archer.cooldown > 0) ctx.globalAlpha = 0.75;
+    drawSprite(archerSprite, archer.x, archer.y);
+    ctx.restore();
   }
+
+  // зубцы стены — с проёмом ровно там, где стоит лучник
+  for (let x = -12; x < W; x += CRENEL_W) {
+    const toothCenter = x + TOOTH_W / 2;
+    if (showArcher && Math.abs(toothCenter - archer.x) < TOOTH_W * 0.8) continue; // проём для лучника
+    ctx.fillStyle = '#131318';
+    ctx.fillRect(x, CRENEL_TOP, TOOTH_W, CRENEL_H);
+    ctx.fillStyle = 'rgba(255,255,255,0.05)';
+    ctx.fillRect(x, CRENEL_TOP, TOOTH_W, 3);
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.fillRect(x + TOOTH_W - 3, CRENEL_TOP, 3, CRENEL_H);
+  }
+  // тень основания зубцов на боевом ходу
+  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  ctx.fillRect(0, CRENEL_TOP + CRENEL_H, W, 4);
+
   ctx.fillStyle = 'rgba(0,0,0,0.5)';
   ctx.fillRect(0, WALL_Y + 18, W, 6);
 
-  torchFlicker.a = 0.7 + Math.random() * 0.3;
-  torchFlicker.b = 0.7 + Math.random() * 0.3;
-  drawTorch(26, WALL_Y - 4, torchFlicker.a);
-  drawTorch(W - 26, WALL_Y - 4, torchFlicker.b);
+  torchFlicker.a = 0.75 + Math.random() * 0.25;
+  torchFlicker.b = 0.75 + Math.random() * 0.25;
+  drawTorch(24, WALL_Y - 2, torchFlicker.a, sceneTime);
+  drawTorch(W - 24, WALL_Y - 2, torchFlicker.b, sceneTime);
 }
 
-function drawTorch(x, y, flicker) {
-  ctx.fillStyle = '#3a2a1a';
-  ctx.fillRect(x - 3, y, 6, 26);
+function drawFlameLayer(x, y, size, color, alpha) {
+  ctx.fillStyle = color;
+  ctx.globalAlpha = alpha;
   ctx.beginPath();
-  ctx.fillStyle = `rgba(255,140,30,${0.5 * flicker})`;
-  ctx.arc(x, y - 6, 14 * flicker, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = `rgba(255,200,60,${0.9 * flicker})`;
-  ctx.beginPath();
-  ctx.moveTo(x, y - 20 * flicker);
-  ctx.lineTo(x - 6, y - 2);
-  ctx.lineTo(x + 6, y - 2);
+  ctx.moveTo(x, y - size);
+  ctx.quadraticCurveTo(x + size * 0.65, y - size * 0.15, x, y + size * 0.55);
+  ctx.quadraticCurveTo(x - size * 0.65, y - size * 0.15, x, y - size);
   ctx.closePath();
   ctx.fill();
+  ctx.globalAlpha = 1;
+}
+
+function drawTorch(x, y, flicker, t) {
+  // кованый кронштейн на стене
+  ctx.fillStyle = '#1c1410';
+  ctx.fillRect(x - 5, y + 16, 10, 8);
+  ctx.fillStyle = '#2e2118';
+  ctx.fillRect(x - 3, y - 6, 6, 24);
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.fillRect(x - 3, y - 6, 2, 24);
+
+  const sway = Math.sin(t * 8 + x * 0.3) * 2.5;
+
+  // мягкое свечение вокруг пламени
+  const glowR = 26 * flicker;
+  const glow = ctx.createRadialGradient(x, y - 16, 2, x, y - 16, glowR);
+  glow.addColorStop(0, `rgba(255,190,90,${0.5 * flicker})`);
+  glow.addColorStop(1, 'rgba(255,140,30,0)');
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.arc(x, y - 16, glowR, 0, Math.PI * 2);
+  ctx.fill();
+
+  // многослойное пламя (тёмно-красный -> оранжевый -> жёлтый)
+  drawFlameLayer(x + sway, y - 12, 15 * flicker, '#c73a1e', 0.85);
+  drawFlameLayer(x + sway * 0.75, y - 17, 12 * flicker, '#ff8a2e', 0.9);
+  drawFlameLayer(x + sway * 0.45, y - 21, 8 * flicker, '#ffe08a', 0.95);
+
+  // редкие искры
+  for (let i = 0; i < 2; i++) {
+    const sparkT = (t * 1.6 + i * 3.7 + x) % 3;
+    const sy = y - 20 - sparkT * 16;
+    const alpha = Math.max(0, 1 - sparkT / 3);
+    ctx.fillStyle = `rgba(255,200,120,${alpha * 0.8})`;
+    ctx.fillRect(x + sway + Math.sin(sparkT * 6 + i) * 4, sy, 1.5, 1.5);
+  }
 }
 
 function drawMist(dt) {
@@ -632,10 +692,11 @@ function drawRavens(dt) {
   });
 }
 
-function drawScene(dt) {
+function drawScene(dt, showArcher) {
+  sceneTime += dt;
   drawSky();
   drawGround(dt);
-  drawWall();
+  drawWall(showArcher);
   drawMist(dt);
   updateRain(dt);
   drawRain();
@@ -732,15 +793,24 @@ function update(dt) {
 
 function draw(dt) {
   if (gameState.screen === 'menu' || gameState.screen === 'settings' || gameState.screen === 'about') {
-    drawScene(dt);
+    drawScene(dt, false);
     drawRavens(dt);
+    trees.filter(t => t.row === 'bottom').forEach(drawTree);
     return;
   }
-  drawScene(dt);
-  for (const orc of gameState.orcs) orc.draw();
+  drawScene(dt, true);
+
+  // орки: сортируем по y, чтобы дальние (только что заспавнившиеся) рисовались
+  // раньше и корректно прятались за нижним рядом деревьев
+  const sortedOrcs = [...gameState.orcs].sort((a, b) => a.y - b.y);
+  for (const orc of sortedOrcs) orc.draw();
+
+  // нижний ряд деревьев рисуется поверх орков — создаёт эффект,
+  // что орки идут ИЗ леса и на миг скрываются за стволами/кронами
+  trees.filter(t => t.row === 'bottom').forEach(drawTree);
+
   for (const p of gameState.projectiles) p.draw();
   for (const pt of gameState.particles) pt.draw();
-  archer.draw();
 
   if (gameState.betweenWaves) {
     ctx.fillStyle = 'rgba(0,0,0,0.35)';
