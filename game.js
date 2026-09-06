@@ -10,8 +10,8 @@ ctx.imageSmoothingEnabled = false; // пиксельная чёткость
 const W = canvas.width;   // 480
 const H = canvas.height;  // 720
 const WALL_Y = 160;       // линия стены — орки идут к этой высоте
-const SIDE_MARGIN = 52;   // ширина полосы с деревьями по бокам
 const FIRE_COOLDOWN = 0.85; // сек между выстрелами лучника
+const ORC_SPAWN_MARGIN = 34;
 
 // ------------------------------------------------------------
 // gameState — единый источник истины
@@ -188,7 +188,7 @@ function drawSprite(sprite, x, y) {
   ctx.drawImage(sprite.canvas, x - sprite.w / 2, y - sprite.h / 2, sprite.w, sprite.h);
 }
 
-// --- Лучник: капюшон, плащ, лук, колчан (14x16) ---
+// --- Лучник: капюшон, плащ, лук, колчан (14x16) — состояние покоя ---
 const ARCHER_MAP = [
   ".....hhhh.....",
   "....hHHHHh....",
@@ -207,12 +207,32 @@ const ARCHER_MAP = [
   ".....l..l.....",
   "....ll..ll....",
 ];
+// --- Лучник в момент выстрела: тетива натянута к плечу, стрела на тетиве ---
+const ARCHER_SHOOT_MAP = [
+  ".....hhhh.....",
+  "....hHHHHh....",
+  "....HffffH....",
+  "....HffffH....",
+  ".....Hffh.....",
+  "......hh......",
+  "....cCCCCc....",
+  "...cCCCCCCc...",
+  "b..rrrCCCc..a.",
+  "b.sr..CCCc..a.",
+  "b..rrrCCCc....",
+  "....cCCCCc....",
+  ".....cCCc.....",
+  ".....lCCl.....",
+  ".....l..l.....",
+  "....ll..ll....",
+];
 const ARCHER_PALETTE = {
   h: '#232733', H: '#343a49', f: '#c9a876',
   c: '#17311f', C: '#25452f',
-  b: '#6b3a2a', s: '#d8c48a', l: '#20160c', a: '#8a6a3a',
+  b: '#6b3a2a', s: '#d8c48a', l: '#20160c', a: '#8a6a3a', r: '#c9a876',
 };
 const archerSprite = makeSprite(ARCHER_MAP, ARCHER_PALETTE, 3.4);
+const archerShootSprite = makeSprite(ARCHER_SHOOT_MAP, ARCHER_PALETTE, 3.4);
 
 // --- Орк: клыки, доспех, топор (14x16), обычный и "раненый" (красная вспышка) ---
 const ORC_MAP = [
@@ -280,22 +300,26 @@ for (let i = 0; i < 260; i++) {
 
 // мелкие камни-декорации
 const rocks = [];
-for (let i = 0; i < 16; i++) {
-  const x = SIDE_MARGIN + 20 + rnd() * (W - SIDE_MARGIN * 2 - 40);
-  const y = WALL_Y + 40 + rnd() * (H - WALL_Y - 70);
+for (let i = 0; i < 14; i++) {
+  const x = 30 + rnd() * (W - 60);
+  const y = WALL_Y + 50 + rnd() * (H - WALL_Y - 80);
   rocks.push({ x, y, w: 6 + rnd() * 8, h: 4 + rnd() * 5 });
 }
 
-// деревья: нижняя линия (откуда идут орки, крупные — для укрытия) + боковые колонны до стены
+// деревья — немного, разбросаны по всей карте, но не вплотную к стене;
+// не сгущаются в одном месте (минимальная дистанция друг от друга)
+const TREE_COUNT = 15;
+const TREE_MIN_DIST = 58;
 const trees = [];
-for (let x = -10; x < W + 16; x += 17 + rnd() * 5) {
-  trees.push({ x, y: H - 2 + rnd() * 10, scale: 1.5 + rnd() * 0.7, row: 'bottom' });
-}
-for (let side = 0; side < 2; side++) {
-  const baseX = side === 0 ? 16 : W - 16;
-  for (let y = WALL_Y + 50; y < H - 10; y += 42 + rnd() * 16) {
-    const jitter = (rnd() - 0.5) * 10;
-    trees.push({ x: baseX + jitter, y, scale: 1.15 + rnd() * 0.5, row: 'side' });
+{
+  let attempts = 0;
+  while (trees.length < TREE_COUNT && attempts < 600) {
+    attempts++;
+    const x = 22 + rnd() * (W - 44);
+    const y = WALL_Y + 95 + rnd() * (H - WALL_Y - 120);
+    const tooClose = trees.some(t => Math.hypot(t.x - x, t.y - y) < TREE_MIN_DIST);
+    if (tooClose) continue;
+    trees.push({ x, y, scale: 1.0 + rnd() * 0.55 });
   }
 }
 
@@ -309,7 +333,7 @@ function drawTree(t) {
   ctx.fillRect(-5, -10, 10, 24);
   ctx.fillStyle = 'rgba(60,45,30,0.4)';
   ctx.fillRect(-5, -10, 3, 24);
-  // тёмные хвойные ярусы — крупнее и гуще
+  // тёмные хвойные ярусы
   for (let i = 0; i < 4; i++) {
     const w = 40 - i * 7;
     const y = -14 - i * 17;
@@ -385,11 +409,26 @@ class Archer {
     this.x = W / 2;
     this.y = WALL_Y - 26;
     this.cooldown = 0;
+    this.animTimer = 0; // >0 — кадр натянутой тетивы
+    this.patrolMin = W * 0.24;
+    this.patrolMax = W * 0.76;
+    this.patrolDir = Math.random() < 0.5 ? 1 : -1;
+    this.patrolSpeed = 22; // px/сек — неторопливый обход стены
   }
-  update(dt) { if (this.cooldown > 0) this.cooldown -= dt; }
+  update(dt) {
+    if (this.cooldown > 0) this.cooldown -= dt;
+    if (this.animTimer > 0) this.animTimer -= dt;
+    // патрулирует стену туда-сюда; во время выстрела на миг замирает
+    if (this.animTimer <= 0) {
+      this.x += this.patrolDir * this.patrolSpeed * dt;
+      if (this.x >= this.patrolMax) { this.x = this.patrolMax; this.patrolDir = -1; }
+      if (this.x <= this.patrolMin) { this.x = this.patrolMin; this.patrolDir = 1; }
+    }
+  }
   canShoot() { return this.cooldown <= 0; }
   shoot(targetX, targetY) {
     this.cooldown = FIRE_COOLDOWN;
+    this.animTimer = 0.22;
     gameState.projectiles.push(new Projectile(this.x, this.y, targetX, targetY));
     SoundEngine.playShoot();
   }
@@ -399,7 +438,7 @@ class Archer {
 
 class Orc {
   constructor(wave) {
-    const margin = SIDE_MARGIN + 30;
+    const margin = ORC_SPAWN_MARGIN;
     this.x = margin + Math.random() * (W - margin * 2);
     this.y = H + 20;
     this.speed = 30 + wave * 3.5 + Math.random() * 8;
@@ -546,8 +585,7 @@ function drawGround(dt) {
   ctx.closePath();
   ctx.fill();
 
-  // боковые деревья — чистый фон, орки в их полосу не заходят (см. SIDE_MARGIN)
-  trees.filter(t => t.row === 'side').forEach(drawTree);
+  // деревья теперь рисуются отдельно, в общем depth-sorted проходе с орками (см. draw())
 }
 
 const CRENEL_TOP = WALL_Y - 40;
@@ -573,19 +611,27 @@ function drawWall(showArcher) {
     }
   }
 
+  // тёмная ниша (бойница) в проёме, где стоит лучник — усиливает ощущение,
+  // что он находится позади/внутри стены, а не просто перед ней
+  if (showArcher) {
+    ctx.fillStyle = 'rgba(4,4,7,0.55)';
+    ctx.fillRect(archer.x - TOOTH_W * 0.9, CRENEL_TOP - 2, TOOTH_W * 1.8, CRENEL_H + 12);
+  }
+
   // лучник стоит НА боевом ходу, позади зубцов — рисуем до зубцов,
   // чтобы затем они частично перекрыли его нижнюю часть
   if (showArcher) {
     ctx.save();
-    if (archer.cooldown > 0) ctx.globalAlpha = 0.75;
-    drawSprite(archerSprite, archer.x, archer.y);
+    if (archer.cooldown > 0 && archer.animTimer <= 0) ctx.globalAlpha = 0.85;
+    const spr = archer.animTimer > 0 ? archerShootSprite : archerSprite;
+    drawSprite(spr, archer.x, archer.y);
     ctx.restore();
   }
 
   // зубцы стены — с проёмом ровно там, где стоит лучник
   for (let x = -12; x < W; x += CRENEL_W) {
     const toothCenter = x + TOOTH_W / 2;
-    if (showArcher && Math.abs(toothCenter - archer.x) < TOOTH_W * 0.8) continue; // проём для лучника
+    if (showArcher && Math.abs(toothCenter - archer.x) < TOOTH_W * 0.75) continue; // проём для лучника
     ctx.fillStyle = '#131318';
     ctx.fillRect(x, CRENEL_TOP, TOOTH_W, CRENEL_H);
     ctx.fillStyle = 'rgba(255,255,255,0.05)';
@@ -795,19 +841,19 @@ function draw(dt) {
   if (gameState.screen === 'menu' || gameState.screen === 'settings' || gameState.screen === 'about') {
     drawScene(dt, false);
     drawRavens(dt);
-    trees.filter(t => t.row === 'bottom').forEach(drawTree);
+    trees.forEach(drawTree);
     return;
   }
   drawScene(dt, true);
 
-  // орки: сортируем по y, чтобы дальние (только что заспавнившиеся) рисовались
-  // раньше и корректно прятались за нижним рядом деревьев
-  const sortedOrcs = [...gameState.orcs].sort((a, b) => a.y - b.y);
-  for (const orc of sortedOrcs) orc.draw();
-
-  // нижний ряд деревьев рисуется поверх орков — создаёт эффект,
-  // что орки идут ИЗ леса и на миг скрываются за стволами/кронами
-  trees.filter(t => t.row === 'bottom').forEach(drawTree);
+  // орки и деревья — общий проход по глубине (painter's algorithm):
+  // дальние объекты (меньший y) рисуются первыми, ближние (больший y) — поверх.
+  // Так дерево у него на пути естественно закрывает орка, идущего позади дерева.
+  const depthSorted = [
+    ...gameState.orcs.map(o => ({ y: o.y, draw: () => o.draw() })),
+    ...trees.map(t => ({ y: t.y, draw: () => drawTree(t) })),
+  ].sort((a, b) => a.y - b.y);
+  for (const item of depthSorted) item.draw();
 
   for (const p of gameState.projectiles) p.draw();
   for (const pt of gameState.particles) pt.draw();
