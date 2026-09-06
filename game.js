@@ -188,13 +188,13 @@ function drawSprite(sprite, x, y) {
   ctx.drawImage(sprite.canvas, x - sprite.w / 2, y - sprite.h / 2, sprite.w, sprite.h);
 }
 
-// --- Лучник: капюшон, плащ, лук, колчан (14x16) — состояние покоя ---
+// --- Лучник: чёрный плащ и капюшон, из-под капюшона видны белые волосы (14x16) ---
 const ARCHER_MAP = [
   ".....hhhh.....",
   "....hHHHHh....",
-  "....HffffH....",
-  "....HffffH....",
-  ".....Hffh.....",
+  "....wffffw....",
+  "....wffffw....",
+  ".....wffh.....",
   "......hh......",
   "....cCCCCc....",
   "...cCCCCCCc...",
@@ -211,9 +211,9 @@ const ARCHER_MAP = [
 const ARCHER_SHOOT_MAP = [
   ".....hhhh.....",
   "....hHHHHh....",
-  "....HffffH....",
-  "....HffffH....",
-  ".....Hffh.....",
+  "....wffffw....",
+  "....wffffw....",
+  ".....wffh.....",
   "......hh......",
   "....cCCCCc....",
   "...cCCCCCCc...",
@@ -227,9 +227,9 @@ const ARCHER_SHOOT_MAP = [
   "....ll..ll....",
 ];
 const ARCHER_PALETTE = {
-  h: '#232733', H: '#343a49', f: '#c9a876',
-  c: '#17311f', C: '#25452f',
-  b: '#6b3a2a', s: '#d8c48a', l: '#20160c', a: '#8a6a3a', r: '#c9a876',
+  h: '#0d0d10', H: '#1b1b21', f: '#c9a876', w: '#e6ddc9',
+  c: '#111015', C: '#201f26',
+  b: '#6b3a2a', s: '#d8c48a', l: '#15100a', a: '#8a6a3a', r: '#d8c48a',
 };
 const archerSprite = makeSprite(ARCHER_MAP, ARCHER_PALETTE, 3.4);
 const archerShootSprite = makeSprite(ARCHER_SHOOT_MAP, ARCHER_PALETTE, 3.4);
@@ -407,22 +407,22 @@ function drawRain() {
 class Archer {
   constructor() {
     this.x = W / 2;
-    this.y = WALL_Y - 26;
+    this.y = WALL_Y - 20;
     this.cooldown = 0;
     this.animTimer = 0; // >0 — кадр натянутой тетивы
-    this.patrolMin = W * 0.24;
-    this.patrolMax = W * 0.76;
-    this.patrolDir = Math.random() < 0.5 ? 1 : -1;
-    this.patrolSpeed = 22; // px/сек — неторопливый обход стены
+    this.moveMin = W * 0.12;
+    this.moveMax = W * 0.88;
+    this.moveSpeed = 170; // px/сек — скорость движения по стене под управлением игрока
   }
   update(dt) {
     if (this.cooldown > 0) this.cooldown -= dt;
     if (this.animTimer > 0) this.animTimer -= dt;
-    // патрулирует стену туда-сюда; во время выстрела на миг замирает
-    if (this.animTimer <= 0) {
-      this.x += this.patrolDir * this.patrolSpeed * dt;
-      if (this.x >= this.patrolMax) { this.x = this.patrolMax; this.patrolDir = -1; }
-      if (this.x <= this.patrolMin) { this.x = this.patrolMin; this.patrolDir = 1; }
+    let dir = 0;
+    if (keysHeld.left) dir -= 1;
+    if (keysHeld.right) dir += 1;
+    if (dir !== 0) {
+      this.x += dir * this.moveSpeed * dt;
+      this.x = Math.max(this.moveMin, Math.min(this.moveMax, this.x));
     }
   }
   canShoot() { return this.cooldown <= 0; }
@@ -450,6 +450,23 @@ class Orc {
     this.bob = Math.random() * Math.PI * 2;
   }
   update(dt) {
+    // обход стволов деревьев: орк отталкивается от ближайших стволов,
+    // чтобы огибать их, а не идти напролом сквозь дерево
+    let avoidX = 0;
+    for (const t of trees) {
+      const dx = this.x - t.x;
+      const dy = this.y - t.y;
+      const trunkR = 13 * t.scale;
+      const rangeR = trunkR + 30;
+      const dist = Math.hypot(dx, dy);
+      if (dist > 0.001 && dist < rangeR) {
+        const strength = (1 - dist / rangeR) * 70;
+        avoidX += (dx / dist) * strength;
+      }
+    }
+    this.x += avoidX * dt;
+    this.x = Math.max(ORC_SPAWN_MARGIN * 0.5, Math.min(W - ORC_SPAWN_MARGIN * 0.5, this.x));
+
     this.y -= this.speed * dt;
     this.bob += dt * 6;
     if (this.hitFlash > 0) this.hitFlash -= dt;
@@ -588,8 +605,8 @@ function drawGround(dt) {
   // деревья теперь рисуются отдельно, в общем depth-sorted проходе с орками (см. draw())
 }
 
-const CRENEL_TOP = WALL_Y - 40;
-const CRENEL_H = 24;
+const CRENEL_TOP = WALL_Y - 42;
+const CRENEL_H = 30;
 const CRENEL_W = 24;
 const TOOTH_W = CRENEL_W * 0.62;
 
@@ -611,15 +628,9 @@ function drawWall(showArcher) {
     }
   }
 
-  // тёмная ниша (бойница) в проёме, где стоит лучник — усиливает ощущение,
-  // что он находится позади/внутри стены, а не просто перед ней
-  if (showArcher) {
-    ctx.fillStyle = 'rgba(4,4,7,0.55)';
-    ctx.fillRect(archer.x - TOOTH_W * 0.9, CRENEL_TOP - 2, TOOTH_W * 1.8, CRENEL_H + 12);
-  }
-
-  // лучник стоит НА боевом ходу, позади зубцов — рисуем до зубцов,
-  // чтобы затем они частично перекрыли его нижнюю часть
+  // лучник стоит на боевом ходу — рисуем его здесь, ДО зубцов,
+  // чтобы зубцы (ниже) легли поверх и по-настоящему перекрыли его торс,
+  // оставляя видимой голову над стеной и ноги под зубцами на самом ходу
   if (showArcher) {
     ctx.save();
     if (archer.cooldown > 0 && archer.animTimer <= 0) ctx.globalAlpha = 0.85;
@@ -628,10 +639,9 @@ function drawWall(showArcher) {
     ctx.restore();
   }
 
-  // зубцы стены — с проёмом ровно там, где стоит лучник
+  // зубцы стены — фиксированная решётка, БЕЗ проёма под лучника:
+  // они всегда рисуются поверх него и реально прячут торс за камнем
   for (let x = -12; x < W; x += CRENEL_W) {
-    const toothCenter = x + TOOTH_W / 2;
-    if (showArcher && Math.abs(toothCenter - archer.x) < TOOTH_W * 0.75) continue; // проём для лучника
     ctx.fillStyle = '#131318';
     ctx.fillRect(x, CRENEL_TOP, TOOTH_W, CRENEL_H);
     ctx.fillStyle = 'rgba(255,255,255,0.05)';
@@ -925,6 +935,8 @@ function endGame() {
 // ============================================================
 // ВВОД
 // ============================================================
+const keysHeld = { left: false, right: false };
+
 canvas.addEventListener('click', (e) => {
   if (gameState.screen !== 'playing' || gameState.betweenWaves) return;
   if (!archer.canShoot()) return;
@@ -963,7 +975,14 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
     if (gameState.screen === 'playing') showScreen('paused');
     else if (gameState.screen === 'paused') showScreen('playing');
+    return;
   }
+  if (e.key === 'a' || e.key === 'A' || e.key === 'ArrowLeft') { keysHeld.left = true; e.preventDefault(); }
+  if (e.key === 'd' || e.key === 'D' || e.key === 'ArrowRight') { keysHeld.right = true; e.preventDefault(); }
+});
+document.addEventListener('keyup', (e) => {
+  if (e.key === 'a' || e.key === 'A' || e.key === 'ArrowLeft') keysHeld.left = false;
+  if (e.key === 'd' || e.key === 'D' || e.key === 'ArrowRight') keysHeld.right = false;
 });
 
 // ============================================================
