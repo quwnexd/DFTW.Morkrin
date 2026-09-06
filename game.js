@@ -12,6 +12,11 @@ const H = canvas.height;  // 720
 const WALL_Y = 160;       // линия стены — орки идут к этой высоте
 const FIRE_COOLDOWN = 0.85; // сек между выстрелами лучника
 const ORC_SPAWN_MARGIN = 34;
+const CRENEL_TOP = WALL_Y - 42;
+const CRENEL_H = 30;
+const CRENEL_W = 24;
+const TOOTH_W = CRENEL_W * 0.62;
+const WALKWAY_Y = CRENEL_TOP + CRENEL_H; // поверхность боевого хода, где стоят ноги лучника
 
 // ------------------------------------------------------------
 // gameState — единый источник истины
@@ -188,39 +193,39 @@ function drawSprite(sprite, x, y) {
   ctx.drawImage(sprite.canvas, x - sprite.w / 2, y - sprite.h / 2, sprite.w, sprite.h);
 }
 
-// --- Лучник: чёрный плащ и капюшон, из-под капюшона видны белые волосы (14x16) ---
+// --- Лучник: чёрный плащ и капюшон, худой силуэт, седые волосы до шеи (14x16) ---
 const ARCHER_MAP = [
   ".....hhhh.....",
   "....hHHHHh....",
   "....wffffw....",
   "....wffffw....",
-  ".....wffh.....",
-  "......hh......",
+  "...wwffffww...",
+  "...w..hh..w...",
+  "...wcCCCCcw...",
+  "b...cCCCCc.a..",
+  "bs..cCCCCc.a..",
+  "b...cCCCCc....",
   "....cCCCCc....",
-  "...cCCCCCCc...",
-  "b..cCCCCCCc..a",
-  "bs.cCCCCCCc..a",
-  "b..cCCCCCCc...",
-  "....cCCCCc....",
+  ".....cCCc.....",
   ".....cCCc.....",
   ".....lCCl.....",
   ".....l..l.....",
   "....ll..ll....",
 ];
-// --- Лучник в момент выстрела: тетива натянута к плечу, стрела на тетиве ---
+// --- Лучник в момент выстрела: тетива натянута, стрела на тетиве, лук вытянут вперёд ---
 const ARCHER_SHOOT_MAP = [
   ".....hhhh.....",
   "....hHHHHh....",
   "....wffffw....",
   "....wffffw....",
-  ".....wffh.....",
-  "......hh......",
-  "....cCCCCc....",
-  "...cCCCCCCc...",
-  "b..rrrCCCc..a.",
-  "b.sr..CCCc..a.",
-  "b..rrrCCCc....",
-  "....cCCCCc....",
+  "...wwffffww...",
+  "...w..hh..w...",
+  "...wcCCCCcw...",
+  "b...cCCCCc.a..",
+  "b.srcCCCCc....",
+  "b.rrcCCCCc....",
+  "r...cCCCCc....",
+  ".....cCCc.....",
   ".....cCCc.....",
   ".....lCCl.....",
   ".....l..l.....",
@@ -407,7 +412,9 @@ function drawRain() {
 class Archer {
   constructor() {
     this.x = W / 2;
-    this.y = WALL_Y - 20;
+    // ноги стоят на поверхности боевого хода — тело поднимается вверх
+    // через ряд зубцов, а не «размазано» по лицевой стороне стены
+    this.y = WALKWAY_Y - archerSprite.h / 2 + 4;
     this.cooldown = 0;
     this.animTimer = 0; // >0 — кадр натянутой тетивы
     this.moveMin = W * 0.12;
@@ -605,11 +612,6 @@ function drawGround(dt) {
   // деревья теперь рисуются отдельно, в общем depth-sorted проходе с орками (см. draw())
 }
 
-const CRENEL_TOP = WALL_Y - 42;
-const CRENEL_H = 30;
-const CRENEL_W = 24;
-const TOOTH_W = CRENEL_W * 0.62;
-
 function drawWall(showArcher) {
   // тело стены / боевой ход
   const wallGrad = ctx.createLinearGradient(0, WALL_Y - 20, 0, WALL_Y + 40);
@@ -632,6 +634,15 @@ function drawWall(showArcher) {
   // чтобы зубцы (ниже) легли поверх и по-настоящему перекрыли его торс,
   // оставляя видимой голову над стеной и ноги под зубцами на самом ходу
   if (showArcher) {
+    // светлая кромка боевого хода — визуально "пол", на котором стоят ноги
+    ctx.fillStyle = 'rgba(90,90,100,0.5)';
+    ctx.fillRect(0, WALKWAY_Y, W, 2);
+    // тень под ногами — прижимает фигуру к поверхности
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    ctx.beginPath();
+    ctx.ellipse(archer.x, WALKWAY_Y + 2, 13, 3, 0, 0, Math.PI * 2);
+    ctx.fill();
+
     ctx.save();
     if (archer.cooldown > 0 && archer.animTimer <= 0) ctx.globalAlpha = 0.85;
     const spr = archer.animTimer > 0 ? archerShootSprite : archerSprite;
