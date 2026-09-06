@@ -1,0 +1,174 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: #0a0508;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  font-family: 'Press Start 2P', monospace;
+  overflow: hidden;
+}
+
+#game-container {
+  position: relative;
+  width: 480px;
+  height: 720px;
+  box-shadow: 0 0 60px rgba(120, 0, 20, 0.4);
+  border: 2px solid #2a1a12;
+}
+
+#gameCanvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  background: #000;
+  cursor: crosshair;
+}
+
+.hidden { display: none !important; }
+
+/* ---------- HUD ---------- */
+#hud {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 10px;
+  background: linear-gradient(to bottom, rgba(0,0,0,0.75), transparent);
+  color: #e8d9b0;
+  font-size: 11px;
+  text-shadow: 1px 1px 0 #000;
+  pointer-events: none;
+}
+#hud .icon-btn { pointer-events: all; }
+
+.hud-item { display: flex; align-items: center; gap: 4px; }
+
+.icon-btn {
+  margin-left: auto;
+  background: #241512;
+  border: 2px solid #6b3a2a;
+  color: #e8d9b0;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 12px;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+.icon-btn:hover { border-color: #b23a2a; box-shadow: 0 0 8px rgba(255,60,30,0.5); }
+
+/* ---------- Overlay screens ---------- */
+.overlay-screen {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(5, 2, 4, 0.55);
+  backdrop-filter: blur(1px);
+}
+
+/* Gothic decorative frame */
+.gothic-frame {
+  position: relative;
+  width: 340px;
+  padding: 34px 22px 26px;
+  background:
+    repeating-linear-gradient(0deg, #221512, #221512 3px, #1a100e 3px, #1a100e 6px);
+  border: 6px solid #100a08;
+  outline: 2px solid #5a2f22;
+  outline-offset: -10px;
+  text-align: center;
+  box-shadow: 0 0 0 2px #000, 0 10px 40px rgba(0,0,0,0.8);
+}
+
+/* spike corners via pseudo elements */
+.gothic-frame::before, .gothic-frame::after {
+  content: '';
+  position: absolute;
+  width: 14px; height: 14px;
+  background: #5a2f22;
+  clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
+  top: -8px;
+}
+.gothic-frame::before { left: -4px; }
+.gothic-frame::after { right: -4px; transform: scaleX(-1); }
+
+.game-title {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 26px;
+  line-height: 1.4;
+  color: #d8c48a;
+  text-shadow:
+    2px 2px 0 #4a0806,
+    0 0 10px rgba(200, 20, 20, 0.6),
+    0 0 22px rgba(200, 20, 20, 0.3);
+  margin-bottom: 6px;
+}
+.game-title.small { font-size: 16px; margin-bottom: 18px; }
+.game-title.red-glow {
+  color: #e8b0a8;
+  text-shadow: 2px 2px 0 #300, 0 0 14px rgba(255,0,0,0.7);
+}
+
+.subtitle {
+  color: #8a7a5a;
+  font-size: 9px;
+  margin-bottom: 26px;
+  letter-spacing: 1px;
+}
+
+.about-text {
+  color: #c8b898;
+  font-size: 9px;
+  line-height: 1.8;
+  margin-bottom: 22px;
+}
+
+/* Stone/tablet buttons */
+.stone-btn {
+  display: block;
+  width: 100%;
+  margin: 0 auto 12px;
+  padding: 12px 10px;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 11px;
+  color: #e8d9b0;
+  background: linear-gradient(#3a2620, #241512);
+  border: 2px solid #6b3a2a;
+  box-shadow: inset 0 0 0 1px #100a08, 0 3px 0 #000;
+  cursor: pointer;
+  letter-spacing: 1px;
+  transition: transform 0.06s ease;
+}
+.stone-btn:last-of-type { margin-bottom: 0; }
+.stone-btn:hover {
+  border-color: #d8542a;
+  box-shadow: inset 0 0 0 1px #100a08, 0 3px 0 #000, 0 0 14px rgba(255,120,40,0.55);
+  animation: flicker 0.15s infinite alternate;
+}
+.stone-btn:active { transform: translateY(2px); }
+
+@keyframes flicker {
+  from { filter: brightness(1); }
+  to { filter: brightness(1.12); }
+}
+
+.crossed-arrows {
+  font-size: 22px;
+  color: #8a3a2a;
+  margin-bottom: 6px;
+  text-shadow: 0 0 8px rgba(200,40,20,0.6);
+}
+
+.setting-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: #c8b898;
+  font-size: 10px;
+  margin-bottom: 22px;
+}
